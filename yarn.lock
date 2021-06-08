@@ -107,10 +107,10 @@
   resolved "https://registry.npmjs.org/@napi-rs/triples/-/triples-1.0.2.tgz#2ce4c6a78568358772008f564ee5009093d20a19"
   integrity sha512-EL3SiX43m9poFSnhDx4d4fn9SSaqyO2rHsCNhETi9bWPmjXK3uPJ0QpPFtx39FEdHcz1vJmsiW41kqc0AgvtzQ==
 
-"@node-rs/helper@^1.0.0", "@node-rs/helper@^1.1.1":
-  version "1.1.1"
-  resolved "https://registry.npmjs.org/@node-rs/helper/-/helper-1.1.1.tgz#1cbac64cd5bcaa038d9c23bc951c75667dc981c1"
-  integrity sha512-HnCdrCXKOm2jdzAdIGk4fey5xn8BuCK0+CiWwc3oMIxaQG1/0v24ZlDJV5DiSQo7vYy+1wKmOVRY3ErmZZm7+A==
+"@node-rs/helper@^1.0.0", "@node-rs/helper@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/@node-rs/helper/-/helper-1.2.0.tgz#c72c9f04527ee5d65700ac4842e3ea21ad0714c1"
+  integrity sha512-pzIFIS0POyqWVqdcF0NQO2DjnO1IeI1UN/hENCZMW3o/ndEpTmZLRVhoXGSHjjzoQaEuHwzj79BnYUXI3syv8w==
   dependencies:
     "@napi-rs/triples" "^1.0.2"
     tslib "^2.2.0"

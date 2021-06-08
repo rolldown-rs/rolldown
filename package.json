@@ -67,7 +67,7 @@
     "typescript": "^4.3.2"
   },
   "dependencies": {
-    "@node-rs/helper": "^1.1.1"
+    "@node-rs/helper": "^1.2.0"
   },
   "lint-staged": {
     "*.@(js|ts|tsx)": ["prettier --write", "eslint -c .eslintrc.yml --fix"],
