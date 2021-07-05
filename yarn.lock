@@ -2591,10 +2591,10 @@ eslint-plugin-prettier@^3.4.0:
   dependencies:
     prettier-linter-helpers "^1.0.0"
 
-eslint-plugin-sonarjs@^0.7.0:
-  version "0.7.0"
-  resolved "https://registry.npmjs.org/eslint-plugin-sonarjs/-/eslint-plugin-sonarjs-0.7.0.tgz#2dbad45e03a6a4de687756b659e88bf3f977383f"
-  integrity sha512-vi6zGkd5Eznc32AQlleWUOMrMeDiUih9wR7nPPfrDCyVRmwYNHIBRPZGv1EgXwELwaPghCSvoAoHoR7uSbBF/Q==
+eslint-plugin-sonarjs@^0.9.0:
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-sonarjs/-/eslint-plugin-sonarjs-0.9.0.tgz#4e97f84d89db465e57c6e7afa3f9e34eef16838d"
+  integrity sha512-zXbYcjJmv72qJlIJ4Wig/4RHkH5047ZjoD4kjKmjLi6Hs91RP8HjGKV+n/Ob1Cg85pDJcA952ftXtxVXrX4IkA==
 
 eslint-scope@^5.1.1:
   version "5.1.1"
