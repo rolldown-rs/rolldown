@@ -12,6 +12,11 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = "1"
 napi-derive = "1"
+path-absolutize = "3.0.10"
+swc_common = "0.11.7"
+swc_ecma_parser = "0.67.2"
+swc_ecma_ast = "0.49.5"
+swc_ecma_visit = "0.35.2"
 
 [target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
 mimalloc = {version = "0.1"}
