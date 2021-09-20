@@ -7,6 +7,11 @@ use napi::{CallContext, Env, JsObject, JsUndefined, Result, Task};
 mod bundle;
 mod module;
 mod helper;
+mod ast;
+mod new_type;
+mod statement;
+mod external_module;
+
 
 #[cfg(all(
   target_arch = "x86_64",

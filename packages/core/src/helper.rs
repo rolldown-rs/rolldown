@@ -13,7 +13,7 @@ use swc_common::{
 use swc_ecma_ast::Module;
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
-pub fn parse_to_ast(codes: String) -> Rc<RefCell<Module>> {
+pub fn parse_to_ast(codes: String) -> Module {
   let cm: Lrc<SourceMap> = Default::default();
   // let handler =
   //       Handler::with_emitter(ColorConfig::Auto, true, false,
@@ -46,20 +46,20 @@ pub fn parse_to_ast(codes: String) -> Rc<RefCell<Module>> {
     // })
     .expect("failed to parser module");
   // module.body
-  Rc::new(RefCell::new(module))
+  module
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
-  // #[test]
-  // fn e2e() {
+  #[test]
+  fn e2e() {
 
-  //   let codes = std::fs::read_to_string("./demo/main.js").unwrap();
+    let codes = std::fs::read_to_string("./demo/main.js").unwrap();
 
-  //   let ast = parse_to_ast(codes);
-  //   // module.body
-  //   // println!("module: {:?}", ast.borrow().body);
-  //   // println!("imports: {:?}", module.borrow().imports);
-  // }
+    let ast = parse_to_ast(codes);
+    // module.body
+    // println!("module: {:?}", ast.to);
+    // println!("imports: {:?}", module.borrow().imports);
+  }
 }
