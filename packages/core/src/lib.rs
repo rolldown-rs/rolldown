@@ -4,14 +4,15 @@ extern crate swc_common;
 extern crate swc_ecma_parser;
 
 use napi::{CallContext, Env, JsObject, JsUndefined, Result, Task};
-mod bundle;
-mod module;
-mod helper;
 mod ast;
-mod new_type;
-mod statement;
+mod bundle;
 mod external_module;
-
+mod graph;
+mod helper;
+mod hook_driver;
+mod module;
+mod statement;
+mod types;
 
 #[cfg(all(
   target_arch = "x86_64",

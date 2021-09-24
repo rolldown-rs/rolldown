@@ -1,45 +1,46 @@
-use std::{borrow::{Borrow, BorrowMut}, cell::{RefCell, RefMut}, collections::HashMap };
+use std::{
+  borrow::{Borrow, BorrowMut},
+  cell::{RefCell, RefMut},
+  collections::HashMap,
+};
 
 use swc_ecma_ast::{Decl, Param, Pat, VarDeclKind};
 
-use crate::{bundle::Bundle, new_type::shared::Shared};
+use crate::{bundle::Bundle, types::shared::Shared};
 
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Scope {
-  pub parnet: Option<Shared<Scope>>,
+  pub parent: Option<Shared<Scope>>,
   pub depth: i32,
-  pub declarations: HashMap<String, Shared<Decl>>,
+  pub declarations: HashMap<String, Decl>,
   pub is_block_scope: bool,
 }
 
 impl Scope {
-  pub fn new(parnet: Option<Shared<Scope>>, params: Option<Vec<Param>>, block: bool) -> Scope {
+  pub fn new(parent: Option<Shared<Scope>>, params: Option<Vec<Pat>>, block: bool) -> Scope {
     let declarations = params.as_ref().map_or(HashMap::new(), |params| {
       let mut declarations = HashMap::new();
-      params
-        .iter()
-        .for_each(|p| {
-          if let Pat::Ident(binding_ident) = &p.pat {
-            declarations.insert(binding_ident.id.sym.to_string(), params);
-          }
-        });
+      params.iter().for_each(|p| {
+        if let Pat::Ident(binding_ident) = &p {
+          declarations.insert(binding_ident.id.sym.to_string(), params);
+        }
+      });
       declarations
     });
     Scope {
-      depth: parnet.as_ref().map_or(0, |p| p.borrow().depth + 1),
-      parnet,
+      depth: parent.as_ref().map_or(0, |p| p.borrow().depth + 1),
+      parent,
       declarations: HashMap::new(),
       is_block_scope: block,
     }
   }
 
-  fn add_declaration(&mut self, name: &str, declaration: &Shared<Decl>) {
-		let is_block_declaration = if let Decl::Var(ref var_decl) = *declaration.borrow() {
+  pub fn add_declaration(&mut self, name: &str, declaration: Decl) {
+    let is_block_declaration = if let Decl::Var(ref var_decl) = *declaration.borrow() {
       match var_decl.kind {
-          VarDeclKind::Const => true,
-          VarDeclKind::Let => true,
-          _ => false,
+        VarDeclKind::Const => true,
+        VarDeclKind::Let => true,
+        _ => false,
       }
     } else {
       false
@@ -47,43 +48,40 @@ impl Scope {
 
     if !is_block_declaration && self.is_block_scope {
       self
-        .parnet
+        .parent
         .as_ref()
         .unwrap()
         .borrow_mut()
         .add_declaration(name, declaration)
     } else {
-      self.declarations.insert(name.to_owned(), declaration.clone());
+      self.declarations.insert(name.to_owned(), declaration);
     }
-	}
+  }
 
-  fn get_declaration (&self, name: &str) -> Option<&Shared<Decl>> {
+  pub fn get_declaration(&self, name: &str) -> Option<&Decl> {
     if self.declarations.contains_key(name) {
       return self.declarations.get(name);
     }
-    if let Some(parent) = &self.parnet {
+    if let Some(parent) = &self.parent {
       parent.get_declaration(name)
     } else {
       None
     }
-	}
+  }
 
-	fn contains (&self, name: &str) -> bool {
-    self
-      .get_declaration(name)
-      .is_some()
-	}
+  pub fn contains(&self, name: &str) -> bool {
+    self.get_declaration(name).is_some()
+  }
 
-	fn find_defining_scope (&self, name: &str) -> Option<&Self> {
+  pub fn find_defining_scope(&self, name: &str) -> Option<&Self> {
     if self.declarations.contains_key(name) {
       return Some(self);
     }
-    
-    if let Some(parent) = &self.parnet {
+
+    if let Some(parent) = &self.parent {
       parent.find_defining_scope(name)
     } else {
       None
     }
-
-	}
+  }
 }

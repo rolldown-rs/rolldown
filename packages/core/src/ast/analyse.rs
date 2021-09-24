@@ -1,21 +1,18 @@
+use std::borrow::Borrow;
 
-use crate::{module::{Module}};
+use crate::{module::Module, types::shared::Shared};
 
+// pub fn analyse(module: &mut Module) {
+//   module
+//     .statements
+//     .iter_mut()
+//     .for_each(|statement| {
+//       statement
+//         .borrow_mut()
+//         .analyse();
+//     })
 
-
-pub fn analyse(module: Module) {
-  module
-    .statements
-    .iter()
-    .for_each(|statement| {
-      statement
-        .borrow()
-        .analyse();
-    })
-
-
-}
-
+// }
 
 // struct ScopeAnalyser {
 //   scope: Shared<Scope>,
@@ -79,11 +76,10 @@ pub fn analyse(module: Module) {
 // }
 
 // // impl ScopeAnalyser {
-  
+
 // // }
 
 // impl Fold for ScopeAnalyser {
-
 
 //   fn fold_fn_expr(&mut self, node: FnExpr) -> FnExpr {
 //     // enter
@@ -102,11 +98,10 @@ pub fn analyse(module: Module) {
 //     self
 //       .new_scope
 //       .replace(Shared::new(Scope::new(Some(self.scope.clone()), names, false)));
-    
+
 //     node.fold_children_with(self);
 
 //     // leave
-
 
 //     node
 //   }

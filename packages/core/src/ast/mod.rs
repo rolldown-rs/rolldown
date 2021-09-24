@@ -1,2 +1,2 @@
-pub mod scope;
 pub mod analyse;
+pub mod scope;
