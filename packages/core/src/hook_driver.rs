@@ -32,13 +32,11 @@ impl HookDriver {
     return {
       let importer_dir = Path::new(importer.unwrap()).parent().unwrap();
       let mut result = importer_dir.join(source);
-      println!("{:?} {:?}", importer_dir, result);
       result.set_extension("js");
       Some(result.to_str().unwrap().to_owned())
     };
   }
   pub fn load(&self, id: &str) -> String {
-    println!("id: {:?}", id);
     std::fs::read_to_string(id).unwrap()
   }
   pub fn transform() {}

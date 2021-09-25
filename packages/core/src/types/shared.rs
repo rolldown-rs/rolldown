@@ -60,26 +60,3 @@ impl <'a, T> DerefMut for Shared<T>
     }
 }
 */
-
-fn split(s: Shared<String>) -> Vec<String> {
-  s.split_whitespace().map(|s| s.to_string()).collect()
-}
-
-fn main() {
-  let s = Shared::new("hello".to_string());
-  let s2 = s.clone();
-  s2.borrow_mut().push('!');
-  println!("{:?}", s2);
-
-  // Deref kicking in...
-  let n = s2.len();
-
-  println!("{:?}", n);
-
-  // mutation has to be explicit
-  s2.borrow_mut().push_str(" dolly");
-
-  println!("{:?} {}", s2.borrow(), s);
-
-  println!("{:?}", split(s2.clone()));
-}

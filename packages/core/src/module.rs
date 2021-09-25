@@ -6,7 +6,7 @@ use swc_ecma_ast::{
 
 use crate::ast::analyse;
 use crate::bundle::Bundle;
-use crate::graph::{Graph, NorOrExt};
+use crate::graph::{Graph, ModOrExt};
 use crate::statement::Statement;
 use crate::types::shared::{self, Shared};
 use crate::{graph, helper, statement};
@@ -88,47 +88,43 @@ impl Module {
         if let ModuleItem::ModuleDecl(module_decl) = module_item {
           match module_decl {
             ModuleDecl::Import(import_decl) => {
-              import_decl
-                .specifiers
-                .as_slice()
-                .iter()
-                .for_each(|specifier| {
-                  let local_name;
-                  let name;
-                  match specifier {
-                    // import foo from './foo'
-                    swc_ecma_ast::ImportSpecifier::Default(n) => {
-                      local_name = n.local.sym.to_string();
-                      name = "default".to_owned();
-                    }
-                    // import { foo } from './foo'
-                    // import { foo as foo2 } from './foo'
-                    swc_ecma_ast::ImportSpecifier::Named(n) => {
-                      local_name = n.local.sym.to_string();
-                      name = n.imported.as_ref().map_or(
-                        local_name.clone(), // `import { foo } from './foo'` doesn't has local name
-                        |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has local name '_foo'
-                      );
-                    }
-                    // import * as foo from './foo'
-                    swc_ecma_ast::ImportSpecifier::Namespace(n) => {
-                      local_name = n.local.sym.to_string();
-                      name = "*".to_owned()
-                    }
+              import_decl.specifiers.iter().for_each(|specifier| {
+                let local_name;
+                let name;
+                match specifier {
+                  // import foo from './foo'
+                  swc_ecma_ast::ImportSpecifier::Default(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = "default".to_owned();
                   }
-                  if imports.contains_key(&local_name) {
-                    panic!("Duplicated import {:?}", local_name);
+                  // import { foo } from './foo'
+                  // import { foo as foo2 } from './foo'
+                  swc_ecma_ast::ImportSpecifier::Named(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = n.imported.as_ref().map_or(
+                      local_name.clone(), // `import { foo } from './foo'` doesn't has local name
+                      |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has local name '_foo'
+                    );
                   }
-                  imports.insert(
-                    local_name.clone(),
-                    ImportDesc {
-                      source: import_decl.src.value.to_string(),
-                      name,
-                      local_name,
-                      // module: None,
-                    },
-                  );
-                });
+                  // import * as foo from './foo'
+                  swc_ecma_ast::ImportSpecifier::Namespace(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = "*".to_owned()
+                  }
+                }
+                if imports.contains_key(&local_name) {
+                  panic!("Duplicated import {:?}", local_name);
+                }
+                imports.insert(
+                  local_name.clone(),
+                  ImportDesc {
+                    source: import_decl.src.value.to_string(),
+                    name,
+                    local_name,
+                    // module: None,
+                  },
+                );
+              });
             }
             _ => {}
           }
@@ -148,14 +144,14 @@ impl Module {
 
       if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &statement.node {
         // import './effects'
-        if import_decl.specifiers.len() < 0 {
+        if import_decl.specifiers.len() == 0 {
         } else {
-          let mut module = Graph::fetch_module(
+          let module = Graph::fetch_module(
             &self.graph,
             &import_decl.src.value.to_string(),
             Some(&self.id),
           );
-          if let NorOrExt::Normal(ref m) = module {
+          if let ModOrExt::Mod(ref m) = module {
             let mut statements = m.borrow_mut().expand_all_statements(false);
             all_statements.append(&mut statements);
           };

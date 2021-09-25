@@ -38,7 +38,18 @@ impl Statement {
     } else {
       false
     };
-    let is_export_declaration = !is_import_declaration;
+    let is_export_declaration = if let ModuleItem::ModuleDecl(module_decl) = &node {
+      match module_decl {
+        ModuleDecl::ExportAll(_) => true,
+        ModuleDecl::ExportDecl(_) => true,
+        ModuleDecl::ExportDefaultDecl(_) => true,
+        ModuleDecl::ExportDefaultExpr(_) => true,
+        ModuleDecl::ExportNamed(_) => true,
+        _ => false,
+      }
+    } else {
+      false
+    };
     // let id = module.id.clone() + "#" + &index.to_string();
     Statement {
       node,
@@ -115,13 +126,7 @@ impl StatementAnalyser {
 impl Visit for StatementAnalyser {
   fn visit_fn_expr(&mut self, node: &FnExpr, _parent: &dyn Node) {
     self.enter();
-    let params = node
-      .function
-      .params
-      .as_slice()
-      .iter()
-      .map(|p| p.pat.clone())
-      .collect();
+    let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
     self.new_scope = Some(Shared::new(Scope::new(
       Some(self.scope.clone()),
       Some(params),
@@ -143,13 +148,7 @@ impl Visit for StatementAnalyser {
       .scope
       .borrow_mut()
       .add_declaration(&node.ident.sym.to_string(), Decl::Fn(node.clone()));
-    let params = node
-      .function
-      .params
-      .as_slice()
-      .iter()
-      .map(|p| p.pat.clone())
-      .collect();
+    let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
     self.new_scope = Some(Shared::new(Scope::new(
       Some(self.scope.clone()),
       Some(params),
