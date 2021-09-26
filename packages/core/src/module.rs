@@ -1,15 +1,16 @@
 use std::collections::HashMap;
+
+use swc_common::{
+  errors::{ColorConfig, Handler},
+  FileName,
+};
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
 use crate::graph;
 use crate::graph::{Graph, ModOrExt};
 use crate::statement::Statement;
 use crate::types::shared::Shared;
-use swc_common::{
-  errors::{ColorConfig, Handler},
-  FileName,
-};
-use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
 #[derive(Clone)]
 pub struct Module {

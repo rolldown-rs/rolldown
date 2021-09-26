@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io;
 
 use once_cell::sync::Lazy;
+use swc_common::sync::RwLock;
 use swc_common::DUMMY_SP;
 use swc_common::{sync::Lrc, SourceMap};
 use thiserror::Error;
@@ -33,7 +34,7 @@ impl From<io::Error> for GraphError {
 pub struct Graph {
   pub entry: String,
   pub entry_module: Option<Shared<Module>>,
-  pub modules_by_id: HashMap<String, ModOrExt>,
+  pub modules_by_id: RwLock<HashMap<String, ModOrExt>>,
   pub hook_driver: HookDriver,
 }
 
@@ -42,7 +43,8 @@ impl Graph {
   pub fn build(entry: &str) -> Result<Shared<Self>, GraphError> {
     // generate the entry module
     let hook_driver = HookDriver::new();
-    let modules_by_id = HashMap::new();
+    let modules_by_id = RwLock::new(HashMap::new());
+    let mut real_modules_by_id = HashMap::new();
     let id = hook_driver
       .resolve_id(entry, None)
       .ok_or_else(|| GraphError::EntryNotFound(entry.to_owned()))?;
@@ -55,11 +57,9 @@ impl Graph {
     });
     let entry_module = Shared::new(Module::new(source, id.to_string(), ret.clone()));
     let module = ModOrExt::Mod(entry_module.clone());
-    ret
-      .borrow_mut()
-      .modules_by_id
-      .insert(id.clone(), module.clone());
+    real_modules_by_id.insert(id.clone(), module.clone());
     ret.borrow_mut().entry_module = Some(entry_module);
+    ret.borrow_mut().modules_by_id = RwLock::new(real_modules_by_id);
     Ok(ret)
   }
 
@@ -74,7 +74,17 @@ impl Graph {
     })
   }
 
-  pub fn fetch_module(
+  pub(crate) fn get_module(&self, id: &str) -> Option<ModOrExt> {
+    let read_guard = self.modules_by_id.read();
+    read_guard.get(id).cloned()
+  }
+
+  pub(crate) fn insert_module(&self, id: String, module: ModOrExt) {
+    let mut write_guard = self.modules_by_id.write();
+    write_guard.insert(id, module);
+  }
+
+  pub(crate) fn fetch_module(
     this: &Shared<Self>,
     source: &str,
     importer: Option<&str>,
@@ -84,29 +94,23 @@ impl Graph {
         .hook_driver
         .resolve_id(source, importer)
         .map(|id| {
-          this.modules_by_id.get(&id).cloned().unwrap_or_else(|| {
+          this.get_module(&id).unwrap_or_else(|| {
             let source = this.hook_driver.load(&id).unwrap();
             let module = ModOrExt::Mod(Shared::new(Module::new(
               source,
               id.to_string(),
               this.clone(),
             )));
-            this
-              .borrow_mut()
-              .modules_by_id
-              .insert(id.clone(), module.clone());
+            this.insert_module(id.clone(), module.clone());
             module
           })
         })
         .unwrap_or_else(|| {
-          this.modules_by_id.get(source).cloned().unwrap_or_else(|| {
+          this.get_module(source).unwrap_or_else(|| {
             let module = ModOrExt::Ext(Shared::new(ExternalModule {
               name: source.to_owned(),
             }));
-            this
-              .borrow_mut()
-              .modules_by_id
-              .insert(source.to_owned(), module.clone());
+            this.insert_module(source.to_owned(), module.clone());
             module
           })
         }),
