@@ -11,12 +11,6 @@ use swc_common::{
 };
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
-pub struct ModuleOptions {
-  pub id: String,
-  pub source: String,
-  pub graph: Shared<Graph>,
-}
-
 #[derive(Clone)]
 pub struct Module {
   pub source: String,
@@ -28,11 +22,11 @@ pub struct Module {
 }
 
 impl Module {
-  pub fn new(op: ModuleOptions) -> Self {
+  pub fn new(source: String, id: String, graph: Shared<Graph>) -> Self {
     let mut module = Module {
-      graph: op.graph,
-      source: op.source,
-      id: op.id,
+      graph,
+      source,
+      id: id,
       statements: vec![],
       imports: HashMap::new(),
       exports: HashMap::new(),
@@ -105,7 +99,7 @@ impl Module {
     self.imports = imports;
   }
 
-  pub fn expand_all_statements(&mut self, _is_entry_module: bool) -> Vec<Shared<Statement>> {
+  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Shared<Statement>> {
     let mut all_statements: Vec<Shared<Statement>> = vec![];
     self.statements.iter().for_each(|statement| {
       if statement.is_included {

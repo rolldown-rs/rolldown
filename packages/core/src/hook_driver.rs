@@ -12,6 +12,10 @@ fn resolve(path: &str) -> io::Result<PathBuf> {
 pub struct HookDriver;
 
 impl HookDriver {
+  pub fn new() -> Self {
+    HookDriver
+  }
+
   // build hooks
   pub fn options() {}
 

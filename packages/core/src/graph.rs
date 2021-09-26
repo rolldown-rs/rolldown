@@ -7,16 +7,15 @@ use swc_common::{sync::Lrc, SourceMap};
 use thiserror::Error;
 
 use crate::{
-  external_module::ExternalModule,
-  hook_driver::HookDriver,
-  module::{Module, ModuleOptions},
-  types::shared::Shared,
+  external_module::ExternalModule, hook_driver::HookDriver, module::Module, types::shared::Shared,
 };
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
 
 #[derive(Debug, Error)]
 pub enum GraphError {
+  #[error("Entry [{0}] not found")]
+  EntryNotFound(String),
   #[error("Bundle doesn't have any entry")]
   NoEntry,
   #[error("{0}")]
@@ -30,6 +29,7 @@ impl From<io::Error> for GraphError {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct Graph {
   pub entry: String,
   pub entry_module: Option<Shared<Module>>,
@@ -38,34 +38,40 @@ pub struct Graph {
 }
 
 impl Graph {
-  pub fn new(entry: &str) -> Graph {
-    Graph {
+  // build a module using dependency relationship
+  pub fn build(entry: &str) -> Result<Shared<Self>, GraphError> {
+    // generate the entry module
+    let hook_driver = HookDriver::new();
+    let modules_by_id = HashMap::new();
+    let id = hook_driver
+      .resolve_id(entry, None)
+      .ok_or_else(|| GraphError::EntryNotFound(entry.to_owned()))?;
+    let source = hook_driver.load(&id)?;
+    let ret = Shared::new(Self {
       entry: entry.to_owned(),
       entry_module: None,
-      modules_by_id: HashMap::new(),
-      hook_driver: HookDriver {},
-    }
+      modules_by_id,
+      hook_driver,
+    });
+    let entry_module = Shared::new(Module::new(source, id.to_string(), ret.clone()));
+    let module = ModOrExt::Mod(entry_module.clone());
+    ret
+      .borrow_mut()
+      .modules_by_id
+      .insert(id.clone(), module.clone());
+    ret.borrow_mut().entry_module = Some(entry_module);
+    Ok(ret)
   }
-  // build a module using dependency relationship
-  pub fn build(this: &Shared<Graph>) -> Result<swc_ecma_ast::Module, GraphError> {
-    Graph::generate_module_graph(this);
-    let entry_module = this.entry_module.as_ref().ok_or(GraphError::NoEntry)?;
-    let statements = Module::expand_all_statements(&mut *entry_module.borrow_mut(), true);
+
+  pub fn get_swc_module(&self) -> Option<swc_ecma_ast::Module> {
+    let statements = Module::expand_all_statements(self.entry_module.as_ref()?, true);
     let body = statements.iter().map(|s| s.node.clone()).collect();
 
-    Ok(swc_ecma_ast::Module {
+    Some(swc_ecma_ast::Module {
       span: DUMMY_SP,
       body,
       shebang: None,
     })
-  }
-
-  // generate the entry module
-  pub fn generate_module_graph(this: &Shared<Self>) {
-    let nor_or_ext = Graph::fetch_module(this, &this.entry, None);
-    if let Ok(ModOrExt::Mod(ref module)) = nor_or_ext {
-      this.borrow_mut().entry_module.replace(module.clone());
-    }
   }
 
   pub fn fetch_module(
@@ -80,11 +86,11 @@ impl Graph {
         .map(|id| {
           this.modules_by_id.get(&id).cloned().unwrap_or_else(|| {
             let source = this.hook_driver.load(&id).unwrap();
-            let module = ModOrExt::Mod(Shared::new(Module::new(ModuleOptions {
+            let module = ModOrExt::Mod(Shared::new(Module::new(
               source,
-              id: id.to_string(),
-              graph: this.clone(),
-            })));
+              id.to_string(),
+              this.clone(),
+            )));
             this
               .borrow_mut()
               .modules_by_id
