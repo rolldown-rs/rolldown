@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "./packages/core",
+  "./packages/node",
 ]
 
 [profile.release]

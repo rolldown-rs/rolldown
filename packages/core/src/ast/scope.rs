@@ -1,12 +1,8 @@
-use std::{
-  borrow::{Borrow, BorrowMut},
-  cell::{RefCell, RefMut},
-  collections::HashMap,
-};
+use std::{borrow::Borrow, collections::HashMap};
 
-use swc_ecma_ast::{Decl, Param, Pat, VarDeclKind};
+use swc_ecma_ast::{Decl, Pat, VarDeclKind};
 
-use crate::{bundle::Bundle, types::shared::Shared};
+use crate::types::shared::Shared;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scope {
@@ -18,7 +14,7 @@ pub struct Scope {
 
 impl Scope {
   pub fn new(parent: Option<Shared<Scope>>, params: Option<Vec<Pat>>, block: bool) -> Scope {
-    let declarations = params.as_ref().map_or(HashMap::new(), |params| {
+    let _declarations = params.as_ref().map_or(HashMap::new(), |params| {
       let mut declarations = HashMap::new();
       params.iter().for_each(|p| {
         if let Pat::Ident(binding_ident) = &p {
@@ -36,12 +32,8 @@ impl Scope {
   }
 
   pub fn add_declaration(&mut self, name: &str, declaration: Decl) {
-    let is_block_declaration = if let Decl::Var(ref var_decl) = *declaration.borrow() {
-      match var_decl.kind {
-        VarDeclKind::Const => true,
-        VarDeclKind::Let => true,
-        _ => false,
-      }
+    let is_block_declaration = if let Decl::Var(var_decl) = declaration.borrow() {
+      matches!(var_decl.kind, VarDeclKind::Let | VarDeclKind::Const)
     } else {
       false
     };

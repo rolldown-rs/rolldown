@@ -117,6 +117,5 @@ dist
 #Added by cargo
 
 /target
-Cargo.lock
 
 *.node

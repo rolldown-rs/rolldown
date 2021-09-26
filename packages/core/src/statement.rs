@@ -1,65 +1,36 @@
-use std::{
-  borrow::{Borrow, BorrowMut},
-  collections::HashMap,
-  panic::PanicInfo,
-};
-
-use swc_common::DUMMY_SP;
 use swc_ecma_ast::*;
-use swc_ecma_visit::{swc_ecma_ast::FnExpr, Fold, FoldWith, Node, Visit, VisitWith};
+use swc_ecma_visit::{swc_ecma_ast::FnExpr, Node, Visit, VisitWith};
 
-use crate::{ast::scope::Scope, module::Module, types::shared::Shared};
+use crate::{ast::scope::Scope, types::shared::Shared};
 
 pub struct StatementOptions {}
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct Statement {
   pub node: ModuleItem,
-  // pub module: &'a Module,
-  // pub index: i32,
-  // pub id: String,
-  // pub scope: Shared<Scope>,
-  // pub defines: HashMap<String, bool>,
-  // pub depends_on: HashMap<String, String>,
-  // pub strongly_depends_on: HashMap<String, String>,
   pub is_included: bool,
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
-  // pub modifies: HashMap<String, String>,
-  // pub included: bool,
-  // source: String,
-  // margin:           { value: [0, 0] },
 }
 
 impl Statement {
   pub fn new(node: ModuleItem) -> Self {
-    let is_import_declaration = if let ModuleItem::ModuleDecl(ModuleDecl::Import(_)) = &node {
-      true
-    } else {
-      false
-    };
+    let is_import_declaration = matches!(&node, ModuleItem::ModuleDecl(ModuleDecl::Import(_)));
     let is_export_declaration = if let ModuleItem::ModuleDecl(module_decl) = &node {
-      match module_decl {
-        ModuleDecl::ExportAll(_) => true,
-        ModuleDecl::ExportDecl(_) => true,
-        ModuleDecl::ExportDefaultDecl(_) => true,
-        ModuleDecl::ExportDefaultExpr(_) => true,
-        ModuleDecl::ExportNamed(_) => true,
-        _ => false,
-      }
+      matches!(
+        module_decl,
+        ModuleDecl::ExportAll(_)
+          | ModuleDecl::ExportDecl(_)
+          | ModuleDecl::ExportDefaultDecl(_)
+          | ModuleDecl::ExportDefaultExpr(_)
+          | ModuleDecl::ExportNamed(_)
+      )
     } else {
       false
     };
-    // let id = module.id.clone() + "#" + &index.to_string();
     Statement {
       node,
-      // module,
-      // index,
-      // id,
-      // scope: Shared::new(Scope::new(None, None, false)),
-      // defines: HashMap::new(),
-      // depends_on: HashMap::new(),
-      // strongly_depends_on: HashMap::new(),
       is_included: false,
       is_import_declaration,
       is_export_declaration,
@@ -70,33 +41,10 @@ impl Statement {
     this.borrow_mut().is_included = true;
     this.clone()
   }
-
-  // pub fn analyse(&mut self) {
-  //   if self.is_import_declaration { return }
-
-  //   let statement = self;
-  //   let scope = statement.scope.clone();
-  //   let mut statement_analyser = StatementAnalyser::new(scope.clone());
-  //   statement.node.visit_children_with(&mut statement_analyser);
-
-  //   scope.declarations.keys().for_each(|name| {
-  //     statement.defines.insert(name.to_owned(), true);
-  //   })
-  // }
-
-  // pub fn expand(&mut self) {
-  //   self.is_included = true;
-  //   let reuslt = vec![];
-  //   let dependencies = self.depends_on.keys();
-  //   dependencies.for_each(|name| {
-  //     if self.defines.contains_key(name) { return }
-  //     self.module
-  //   })
-
-  // }
 }
 
-struct StatementAnalyser {
+#[non_exhaustive]
+pub struct StatementAnalyser {
   pub scope: Shared<Scope>,
   pub new_scope: Option<Shared<Scope>>,
 }
@@ -108,14 +56,17 @@ impl StatementAnalyser {
       new_scope: None,
     }
   }
+
   pub fn enter(&mut self) {
     self.new_scope.take();
   }
+
   pub fn before_fold_children(&mut self) {
     if let Some(ref new_scope) = self.new_scope {
       self.scope = new_scope.clone()
     }
   }
+
   pub fn leave(&mut self) {
     if let Some(new_scope) = &self.new_scope {
       self.scope = new_scope.borrow().parent.as_ref().unwrap().clone()

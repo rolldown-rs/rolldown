@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import test from 'ava'
 
 import { rolldown } from '../index'

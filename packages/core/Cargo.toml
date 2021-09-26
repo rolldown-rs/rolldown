@@ -4,27 +4,18 @@ edition = "2018"
 name = "rolldown-core"
 version = "0.0.1"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies.swc_common]
+features = ["tty-emitter", "concurrent"]
 version = "0.12.1"
-features = ["tty-emitter"]
 
 [dependencies]
+anyhow = "1"
 napi = "1"
 napi-derive = "1"
-path-absolutize = "3.0.10"
-swc_ecma_parser = "0.70.3"
-swc_ecma_ast = "0.52.0"
-swc_ecma_visit = "0.38.1"
-swc_ecma_codegen = "0.70.5"
-
-
-[target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
-mimalloc = {version = "0.1"}
-
-[build-dependencies]
-napi-build = "1"
+once_cell = "1"
+path-absolutize = "3"
+swc_ecma_ast = "0.52"
+swc_ecma_codegen = "0.70"
+swc_ecma_parser = "0.70"
+swc_ecma_visit = "0.38"
+thiserror = "1"

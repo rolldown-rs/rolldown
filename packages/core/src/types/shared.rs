@@ -1,17 +1,17 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt;
 use std::ops::Deref;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, PartialEq)]
 pub struct Shared<T> {
-  v: Rc<RefCell<T>>,
+  v: Arc<RefCell<T>>,
 }
 
 impl<T> Shared<T> {
   pub fn new(t: T) -> Shared<T> {
     Shared {
-      v: Rc::new(RefCell::new(t)),
+      v: Arc::new(RefCell::new(t)),
     }
   }
 }
@@ -49,14 +49,3 @@ impl<'a, T> Deref for Shared<T> {
     unsafe { self.as_ptr().as_ref().unwrap() }
   }
 }
-
-/*
-// Cute, but useless, since it needs to be mutable
-// and so can't be shared anyway
-impl <'a, T> DerefMut for Shared<T>
-{   #[inline]
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe {self.as_ptr().as_mut().unwrap()}
-    }
-}
-*/
