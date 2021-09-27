@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 
+use ahash::RandomState;
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use swc_common::sync::RwLock;
@@ -34,7 +35,7 @@ impl From<io::Error> for GraphError {
 pub struct Graph {
   pub entry: String,
   pub entry_module: Option<Arc<Module>>,
-  pub modules_by_id: RwLock<HashMap<String, ModOrExt>>,
+  pub modules_by_id: RwLock<HashMap<String, ModOrExt, RandomState>>,
   pub hook_driver: HookDriver,
 }
 
@@ -43,8 +44,9 @@ impl Graph {
   pub fn build(entry: &str) -> Result<Arc<Self>, GraphError> {
     // generate the entry module
     let hook_driver = HookDriver::new();
-    let modules_by_id = RwLock::new(HashMap::new());
-    let mut real_modules_by_id = HashMap::new();
+    let modules_by_id: RwLock<HashMap<String, ModOrExt, RandomState>> =
+      RwLock::new(HashMap::default());
+    let mut real_modules_by_id: HashMap<String, ModOrExt, RandomState> = HashMap::default();
     let id = hook_driver
       .resolve_id(entry, None)
       .ok_or_else(|| GraphError::EntryNotFound(entry.to_owned()))?;

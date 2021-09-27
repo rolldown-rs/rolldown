@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{atomic::Ordering, Arc};
 
+use ahash::RandomState;
 use rayon::prelude::*;
 use swc_common::{
   errors::{ColorConfig, Handler},
@@ -19,8 +20,8 @@ pub struct Module {
   pub graph: Arc<Graph>,
   pub id: String,
   pub statements: Vec<Arc<Statement>>,
-  pub imports: HashMap<String, ImportDesc>,
-  pub exports: HashMap<String, ExportDesc>,
+  pub imports: HashMap<String, ImportDesc, RandomState>,
+  pub exports: HashMap<String, ExportDesc, RandomState>,
 }
 
 impl Module {
@@ -30,8 +31,8 @@ impl Module {
       source,
       id,
       statements: vec![],
-      imports: HashMap::new(),
-      exports: HashMap::new(),
+      imports: HashMap::default(),
+      exports: HashMap::default(),
     };
 
     let ast = module.get_ast();

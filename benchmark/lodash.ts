@@ -11,16 +11,19 @@ async function bench() {
     entryPoints: [ENTRY],
     bundle: true,
     treeShaking: false,
-    sourcemap: false,
+    sourcemap: true,
     minify: false,
     splitting: false,
     write: false,
+    target: 'esnext',
   })
   const esbuildDuration = process.hrtime.bigint() - beforeEsbuild
   console.info('esbuild: ', Number(esbuildDuration / BigInt(1e6)).toFixed(2), 'ms')
 
   const beforeRolldown = process.hrtime.bigint()
-  await rolldown(ENTRY)
+  await rolldown(ENTRY, {
+    sourcemap: true,
+  })
   const rolldownDuration = process.hrtime.bigint() - beforeRolldown
   console.info('rolldown: ', Number(rolldownDuration / BigInt(1e6)).toFixed(2), 'ms')
 

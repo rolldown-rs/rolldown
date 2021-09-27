@@ -7,9 +7,12 @@ version = "0.1.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-napi = "1"
+napi = {version = "1", features = ["serde_json"]}
 napi-derive = "1"
 rolldown = {path = "../core", version = "0.0.1"}
+serde = "1"
+serde_derive = "1"
+serde_json = "1"
 
 [target.'cfg(all(target_arch = "x86_64", not(target_os = "macos"), not(target_env = "musl")))'.dependencies]
 mimalloc-rust = {version = "0.1"}

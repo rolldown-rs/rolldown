@@ -1,7 +1,9 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 
+use swc_common::{BytePos, LineCol};
 use swc_ecma_codegen::text_writer::JsWriter;
+use swc_ecma_parser::JscTarget;
 use thiserror::Error;
 
 use crate::graph;
@@ -41,13 +43,23 @@ impl Bundle {
     })
   }
 
-  pub fn generate<W: Write>(&self, w: W) -> Result<(), BundleError> {
+  pub fn generate<W: Write>(
+    &self,
+    w: W,
+    sm: Option<&mut Vec<(BytePos, LineCol)>>,
+  ) -> Result<(), BundleError> {
     let node = self.graph.get_swc_module().ok_or(BundleError::NoModule)?;
     let mut emitter = swc_ecma_codegen::Emitter {
       cfg: swc_ecma_codegen::Config { minify: false },
       cm: graph::SOURCE_MAP.clone(),
       comments: None,
-      wr: Box::new(JsWriter::new(graph::SOURCE_MAP.clone(), "\n", w, None)),
+      wr: Box::new(JsWriter::with_target(
+        graph::SOURCE_MAP.clone(),
+        "\n",
+        w,
+        sm,
+        JscTarget::latest(),
+      )),
     };
     emitter.emit_module(&node)?;
     Ok(())
@@ -62,7 +74,8 @@ mod tests {
   fn e2e() {
     let bundle = Bundle::new("fixtures/main.js").expect("Create bundle failed");
     let mut output = Vec::new();
-    assert!(bundle.generate(&mut output).is_ok());
+    let mut sm = Vec::new();
+    assert!(bundle.generate(&mut output, Some(&mut sm)).is_ok());
     assert_eq!(
       String::from_utf8(output).expect("Output is not utf8"),
       r#"export default function add(a, b) {
