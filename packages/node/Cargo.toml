@@ -12,7 +12,7 @@ napi-derive = "1"
 rolldown = {path = "../core", version = "0.0.1"}
 
 [target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
-mimalloc = {version = "0.1"}
+mimalloc-rust = {version = "0.1"}
 
 [build-dependencies]
 napi-build = "1"

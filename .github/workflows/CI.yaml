@@ -108,7 +108,6 @@ jobs:
         with:
           profile: minimal
           override: true
-          toolchain: stable
           target: ${{ matrix.settings.target }}
 
       - name: Generate Cargo.lock
@@ -180,7 +179,7 @@ jobs:
           prepare: |
             pkg install -y curl node yarn npm python2
             curl https://sh.rustup.rs -sSf --output rustup.sh
-            sh rustup.sh -y --profile minimal --default-toolchain stable
+            sh rustup.sh -y --profile minimal --default-toolchain $(cat rust-toolchain)
             export PATH="/usr/local/cargo/bin:$PATH"
             echo "~~~~ rustc --version ~~~~"
             rustc --version
@@ -476,7 +475,7 @@ jobs:
         run: pnpm artifacts
 
       - name: List packages
-        run: ls -R ./packages/core/npm
+        run: ls -R ./packages/node/npm
         shell: bash
 
       - name: Lerna publish

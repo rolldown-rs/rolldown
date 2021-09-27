@@ -11,11 +11,12 @@ use napi::{self, CallContext, Env, JsBuffer, JsObject, JsString, Result, Task};
   not(debug_assertions)
 ))]
 #[global_allocator]
-static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL_MIMALLOC: mimalloc_rust::GlobalMiMalloc = mimalloc_rust::GlobalMiMalloc;
 
 #[module_exports]
 fn init(mut exports: JsObject) -> Result<()> {
   exports.create_named_method("rolldown", rolldown)?;
+  exports.create_named_method("rolldownSync", rolldown_sync)?;
   Ok(())
 }
 
@@ -41,6 +42,21 @@ impl Task for Rolldown {
   fn resolve(self, env: Env, output: Self::Output) -> Result<Self::JsValue> {
     env.create_buffer_with_data(output).map(|v| v.into_raw())
   }
+}
+
+#[js_function(1)]
+fn rolldown_sync(ctx: CallContext) -> Result<JsBuffer> {
+  let entry = ctx.get::<JsString>(0)?.into_utf8()?;
+  let bundle = rolldown::Bundle::new(entry.as_str()?)
+    .map_err(|err| napi::Error::new(napi::Status::GenericFailure, format!("{}", err)))?;
+  let mut output = Vec::new();
+  bundle
+    .generate(&mut output)
+    .map_err(|err| napi::Error::new(napi::Status::GenericFailure, format!("{}", err)))?;
+  ctx
+    .env
+    .create_buffer_with_data(output)
+    .map(|v| v.into_raw())
 }
 
 #[js_function(1)]

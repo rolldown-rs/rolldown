@@ -37,7 +37,7 @@ impl Module {
     let ast = module.get_ast();
     let statements = ast
       .body
-      .into_iter()
+      .into_par_iter()
       .map(|node| Arc::new(Statement::new(node)))
       .collect::<Vec<_>>();
     module.statements = statements;

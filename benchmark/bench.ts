@@ -15,6 +15,7 @@ async function run() {
       await rollup({
         input: ENTRY,
         cache: false,
+        treeshake: false,
       })
     }),
 

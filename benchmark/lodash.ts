@@ -28,6 +28,7 @@ async function bench() {
   await rollup({
     input: ENTRY,
     cache: false,
+    treeshake: false,
   })
   const rollupDuration = process.hrtime.bigint() - beforeRollup
   console.info('rollup: ', Number(rollupDuration / BigInt(1e6)).toFixed(2), 'ms')
