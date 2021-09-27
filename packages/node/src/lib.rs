@@ -8,10 +8,11 @@ use napi::{self, CallContext, Env, JsBuffer, JsObject, JsString, Result, Task};
 #[cfg(all(
   target_arch = "x86_64",
   not(target_env = "musl"),
+  not(target_os = "macos"),
   not(debug_assertions)
 ))]
 #[global_allocator]
-static GLOBAL_MIMALLOC: mimalloc_rust::GlobalMiMalloc = mimalloc_rust::GlobalMiMalloc;
+static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 
 #[module_exports]
 fn init(mut exports: JsObject) -> Result<()> {

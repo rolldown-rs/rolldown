@@ -11,8 +11,11 @@ napi = "1"
 napi-derive = "1"
 rolldown = {path = "../core", version = "0.0.1"}
 
-[target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 mimalloc-rust = {version = "0.1"}
+
+[target.'cfg(all(target_arch = "x86_64", not(target_os = "macos"), not(target_env = "musl")))'.dependencies]
+snmalloc-rs = {version = "0.2", features = ["cache-friendly", "16mib", "native-cpu", "usecxx20"]}
 
 [build-dependencies]
 napi-build = "1"
