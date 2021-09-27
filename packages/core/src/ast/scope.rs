@@ -55,7 +55,7 @@ impl Scope {
   pub fn get_declaration(&self, name: &str) -> Option<Decl> {
     let read_lock = self.declarations.read();
     if read_lock.contains_key(name) {
-      return read_lock.get(name).map(|d| d.clone());
+      return read_lock.get(name).cloned();
     }
     if let Some(parent) = &self.parent {
       parent.get_declaration(name)

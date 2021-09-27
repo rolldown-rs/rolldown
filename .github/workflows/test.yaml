@@ -1,0 +1,39 @@
+name: Rust test
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - '**'
+  pull_request:
+
+jobs:
+  cargo-test:
+    name: Cargo test
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - linux-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
+      - name: Install
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          components: rustfmt, clippy
+
+      - name: Test
+        run: cargo test --all --all-features -- --nocapture

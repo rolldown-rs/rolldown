@@ -58,7 +58,7 @@ impl Graph {
     let graph = Arc::make_mut(&mut ret);
     let entry_module = Arc::new(Module::new(source, id.to_string(), ret_cloned));
     let module = ModOrExt::Mod(entry_module.clone());
-    real_modules_by_id.insert(id.clone(), module.clone());
+    real_modules_by_id.insert(id, module);
     graph.entry_module = Some(entry_module);
     graph.modules_by_id = RwLock::new(real_modules_by_id);
     Ok(ret)

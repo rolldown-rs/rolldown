@@ -42,10 +42,7 @@ impl Bundle {
   }
 
   pub fn generate<W: Write>(&self, w: W) -> Result<(), BundleError> {
-    let node = self
-      .graph
-      .get_swc_module()
-      .ok_or_else(|| BundleError::NoModule)?;
+    let node = self.graph.get_swc_module().ok_or(BundleError::NoModule)?;
     let mut emitter = swc_ecma_codegen::Emitter {
       cfg: swc_ecma_codegen::Config { minify: false },
       cm: graph::SOURCE_MAP.clone(),

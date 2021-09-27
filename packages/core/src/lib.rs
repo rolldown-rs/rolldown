@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+
 mod ast;
 mod bundle;
 mod external_module;

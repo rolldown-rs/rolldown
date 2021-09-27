@@ -27,7 +27,7 @@ impl Module {
     let mut module = Module {
       graph,
       source,
-      id: id,
+      id,
       statements: vec![],
       imports: HashMap::new(),
       exports: HashMap::new(),
@@ -106,8 +106,7 @@ impl Module {
 
       if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &statement.node {
         // import './effects'
-        if import_decl.specifiers.is_empty() {
-        } else {
+        if !import_decl.specifiers.is_empty() {
           if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
             &self.graph,
             &import_decl.src.value.to_string(),

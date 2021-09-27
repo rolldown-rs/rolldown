@@ -10,6 +10,12 @@ fn resolve(path: &str) -> io::Result<PathBuf> {
 #[non_exhaustive]
 pub struct HookDriver;
 
+impl Default for HookDriver {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl HookDriver {
   pub fn new() -> Self {
     HookDriver
