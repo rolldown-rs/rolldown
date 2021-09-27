@@ -1,1 +1,3 @@
 target
+pnpm-lock.yaml
+**/fixtures/**
