@@ -16,6 +16,7 @@ env:
 plugins:
   - import
   - sonarjs
+  - '@typescript-eslint'
 
 extends:
   - eslint:recommended
@@ -74,15 +75,13 @@ overrides:
       'no-unused-vars': [2, { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }]
 
   - files:
-      - ./**/{fixtures,demo}/**/*.{js,jsx,ts,tsx}
+      - ./**/fixtures/**/*.{js,jsx,ts,tsx}
     rules:
       'no-console': 0
       'no-unused-vars': 0
 
   - files:
       - ./**/*{.ts,.tsx}
-    plugins:
-      - '@typescript-eslint'
     rules:
       'no-undef': 0
       # TypeScript declare merge

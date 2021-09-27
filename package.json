@@ -20,7 +20,7 @@
     "bench": "node -r @swc-node/register ./benchmark/bench.ts",
     "bench:lodash": "node -r @swc-node/register ./benchmark/lodash.ts",
     "build": "napi build --platform --release --cargo-cwd ./packages/node -c ./packages/node/package.json",
-    "lint": "eslint . -c ./.eslintrc.yml \"packages/**/*.{ts,js}\"",
+    "lint": "eslint . -c ./.eslintrc.yml",
     "test": "ava",
     "format": "run-p format:md format:json format:yaml format:source",
     "format:md": "prettier --parser markdown --write \"./**/*.md\"",
@@ -53,9 +53,6 @@
     "prettier": "^2.4.1",
     "rollup": "^2.57.0",
     "typescript": "^4.4.3"
-  },
-  "dependencies": {
-    "@node-rs/helper": "^1.2.1"
   },
   "lint-staged": {
     "*.@(js|ts|tsx)": ["prettier --write", "eslint -c .eslintrc.yml --fix"],

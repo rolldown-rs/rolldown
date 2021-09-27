@@ -32,13 +32,13 @@ jobs:
         uses: actions/cache@v2
         with:
           path: node_modules
-          key: npm-cache-lint-node@14-${{ hashFiles('yarn.lock') }}
+          key: npm-cache-lint-node@14-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: 'Install dependencies'
-        run: yarn install --frozen-lockfile --registry https://registry.npmjs.org --network-timeout 300000
+        run: pnpm install --frozen-lockfile --registry https://registry.npmjs.org
 
       - name: ESLint
-        run: yarn lint
+        run: pnpm lint
 
       - name: Cargo fmt
         run: cargo fmt -- --check

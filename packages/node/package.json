@@ -36,7 +36,7 @@
     "version": "napi version"
   },
   "dependencies": {
-    "@node-rs/helper": "^1.2.0"
+    "@node-rs/helper": "^1.2.1"
   },
   "bugs": {
     "url": "https://github.com/Brooooooklyn/rolldown/issues"
