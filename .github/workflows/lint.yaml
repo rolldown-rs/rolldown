@@ -28,6 +28,9 @@ jobs:
           override: true
           components: rustfmt, clippy
 
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Cache NPM dependencies
         uses: actions/cache@v2
         with:
