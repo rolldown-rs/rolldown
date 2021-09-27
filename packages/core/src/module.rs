@@ -103,25 +103,40 @@ impl Module {
       if statement.is_included.load(Ordering::Relaxed) {
         return;
       }
-
-      if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &statement.node {
-        // import './effects'
-        if !import_decl.specifiers.is_empty() {
-          if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
-            &self.graph,
-            &import_decl.src.value.to_string(),
-            Some(&self.id),
-          ) {
-            let mut statements = m.expand_all_statements(false);
-            all_statements.append(&mut statements);
-          };
+      if let ModuleItem::ModuleDecl(module_decl) = &statement.node {
+        match module_decl {
+          ModuleDecl::Import(import_decl) => {
+            // TODO: delete unused `import './foo'` that has no effects
+            if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
+              &self.graph,
+              &import_decl.src.value.to_string(),
+              Some(&self.id),
+            ) {
+              let mut statements = m.expand_all_statements(false);
+              all_statements.append(&mut statements);
+            };
+            return;
+          }
+          ModuleDecl::ExportNamed(node) => {
+            // export { foo } from './foo'
+            // export { foo as foo2 } from './foo'
+            // export * as foo from './foo'
+            if let Some(src) = &node.src {
+              if let Ok(ModOrExt::Mod(ref m)) =
+                Graph::fetch_module(&self.graph, &src.value.to_string(), Some(&self.id))
+              {
+                let mut statements = m.expand_all_statements(false);
+                all_statements.append(&mut statements);
+              };
+            }
+            return;
+          }
+          _ => {}
         }
-        return;
       }
+
       statement.expand();
       all_statements.push(statement.clone());
-
-      // TODO: // skip `export { foo, bar, baz }`...
     });
     all_statements
   }
