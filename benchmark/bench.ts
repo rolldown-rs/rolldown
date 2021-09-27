@@ -14,6 +14,7 @@ async function run() {
     b.add('Rollup', async () => {
       await rollup({
         input: ENTRY,
+        cache: false,
       })
     }),
 

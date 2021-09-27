@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::{atomic::Ordering, Arc};
 
 use swc_common::{
@@ -18,7 +17,7 @@ pub struct Module {
   pub source: String,
   pub graph: Arc<Graph>,
   pub id: String,
-  pub statements: Vec<Rc<Statement>>,
+  pub statements: Vec<Arc<Statement>>,
   pub imports: HashMap<String, ImportDesc>,
   pub exports: HashMap<String, ExportDesc>,
 }
@@ -38,7 +37,7 @@ impl Module {
     let statements = ast
       .body
       .into_iter()
-      .map(|node| Rc::new(Statement::new(node)))
+      .map(|node| Arc::new(Statement::new(node)))
       .collect::<Vec<_>>();
     module.statements = statements;
 
@@ -98,8 +97,8 @@ impl Module {
     self.imports = imports;
   }
 
-  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Rc<Statement>> {
-    let mut all_statements: Vec<Rc<Statement>> = vec![];
+  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<Statement>> {
+    let mut all_statements: Vec<Arc<Statement>> = vec![];
     self.statements.iter().for_each(|statement| {
       if statement.is_included.load(Ordering::Relaxed) {
         return;
