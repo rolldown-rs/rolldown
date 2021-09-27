@@ -3,8 +3,9 @@ parser: '@typescript-eslint/parser'
 parserOptions:
   ecmaFeatures:
     jsx: true
-  ecmaVersion: 2020
+  ecmaVersion: latest
   sourceType: module
+  project: ./tsconfig.json
 
 env:
   browser: true
@@ -68,16 +69,20 @@ rules:
 
 overrides:
   - files:
-      - ./**/*.{ts,tsx}
+      - ./**/*.{js,jsx}
     rules:
       'no-unused-vars': [2, { varsIgnorePattern: '^_', argsIgnorePattern: '^_', ignoreRestSiblings: true }]
+
+  - files:
+      - ./**/{fixtures,demo}/**/*.{js,jsx,ts,tsx}
+    rules:
+      'no-console': 0
+      'no-unused-vars': 0
 
   - files:
       - ./**/*{.ts,.tsx}
     plugins:
       - '@typescript-eslint'
-    parserOptions:
-      project: ./tsconfig.json
     rules:
       'no-undef': 0
       # TypeScript declare merge

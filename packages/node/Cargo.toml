@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = "1"
 napi-derive = "1"
+rolldown = {path = "../core", version = "0.0.1"}
 
 [target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
 mimalloc = {version = "0.1"}

@@ -1,7 +1,6 @@
-use std::{
-  env, io,
-  path::{Path, PathBuf},
-};
+use std::env;
+use std::io;
+use std::path::{Path, PathBuf};
 
 fn resolve(path: &str) -> io::Result<PathBuf> {
   Ok(Path::join(env::current_dir()?.as_path(), path))

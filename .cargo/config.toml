@@ -1,31 +1,15 @@
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-cpu=haswell"]
-
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=haswell"]
-
 [target.x86_64-unknown-linux-musl]
 rustflags = [
   "-C",
   "target-feature=-crt-static",
-  "-C",
-  "target-cpu=haswell",
 ]
-
-[target.x86_64-unknown-freebsd]
-rustflags = ["-C", "target-cpu=haswell"]
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "target-cpu=apple-a14"]
 
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
-rustflags = ["-C", "target-feature=v8.1a"]
 
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-musl-gcc"
-rustflags = ["-C", "target-feature=-crt-static", "-C", "target-feature=v8.1a"]
+rustflags = ["-C", "target-feature=-crt-static"]
 
 [target.armv7-unknown-linux-gnueabihf]
 linker = "arm-linux-gnueabihf-gcc"
-rustflags = ["-C", "target-feature=v7"]

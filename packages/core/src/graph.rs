@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 
 use once_cell::sync::Lazy;
 use swc_common::sync::RwLock;
@@ -7,9 +8,7 @@ use swc_common::DUMMY_SP;
 use swc_common::{sync::Lrc, SourceMap};
 use thiserror::Error;
 
-use crate::{
-  external_module::ExternalModule, hook_driver::HookDriver, module::Module, types::shared::Shared,
-};
+use crate::{external_module::ExternalModule, hook_driver::HookDriver, module::Module};
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
 
@@ -33,14 +32,14 @@ impl From<io::Error> for GraphError {
 #[non_exhaustive]
 pub struct Graph {
   pub entry: String,
-  pub entry_module: Option<Shared<Module>>,
+  pub entry_module: Option<Arc<Module>>,
   pub modules_by_id: RwLock<HashMap<String, ModOrExt>>,
   pub hook_driver: HookDriver,
 }
 
 impl Graph {
   // build a module using dependency relationship
-  pub fn build(entry: &str) -> Result<Shared<Self>, GraphError> {
+  pub fn build(entry: &str) -> Result<Arc<Self>, GraphError> {
     // generate the entry module
     let hook_driver = HookDriver::new();
     let modules_by_id = RwLock::new(HashMap::new());
@@ -49,17 +48,19 @@ impl Graph {
       .resolve_id(entry, None)
       .ok_or_else(|| GraphError::EntryNotFound(entry.to_owned()))?;
     let source = hook_driver.load(&id)?;
-    let ret = Shared::new(Self {
+    let mut ret = Arc::new(Self {
       entry: entry.to_owned(),
       entry_module: None,
       modules_by_id,
       hook_driver,
     });
-    let entry_module = Shared::new(Module::new(source, id.to_string(), ret.clone()));
+    let ret_cloned = ret.clone();
+    let graph = Arc::make_mut(&mut ret);
+    let entry_module = Arc::new(Module::new(source, id.to_string(), ret_cloned));
     let module = ModOrExt::Mod(entry_module.clone());
     real_modules_by_id.insert(id.clone(), module.clone());
-    ret.borrow_mut().entry_module = Some(entry_module);
-    ret.borrow_mut().modules_by_id = RwLock::new(real_modules_by_id);
+    graph.entry_module = Some(entry_module);
+    graph.modules_by_id = RwLock::new(real_modules_by_id);
     Ok(ret)
   }
 
@@ -85,7 +86,7 @@ impl Graph {
   }
 
   pub(crate) fn fetch_module(
-    this: &Shared<Self>,
+    this: &Arc<Self>,
     source: &str,
     importer: Option<&str>,
   ) -> Result<ModOrExt, GraphError> {
@@ -96,18 +97,14 @@ impl Graph {
         .map(|id| {
           this.get_module(&id).unwrap_or_else(|| {
             let source = this.hook_driver.load(&id).unwrap();
-            let module = ModOrExt::Mod(Shared::new(Module::new(
-              source,
-              id.to_string(),
-              this.clone(),
-            )));
+            let module = ModOrExt::Mod(Arc::new(Module::new(source, id.to_string(), this.clone())));
             this.insert_module(id.clone(), module.clone());
             module
           })
         })
         .unwrap_or_else(|| {
           this.get_module(source).unwrap_or_else(|| {
-            let module = ModOrExt::Ext(Shared::new(ExternalModule {
+            let module = ModOrExt::Ext(Arc::new(ExternalModule {
               name: source.to_owned(),
             }));
             this.insert_module(source.to_owned(), module.clone());
@@ -120,8 +117,8 @@ impl Graph {
 
 #[derive(Clone)]
 pub enum ModOrExt {
-  Mod(Shared<Module>),
-  Ext(Shared<ExternalModule>),
+  Mod(Arc<Module>),
+  Ext(Arc<ExternalModule>),
 }
 
 impl ModOrExt {

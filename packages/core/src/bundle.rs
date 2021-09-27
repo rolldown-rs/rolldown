@@ -1,9 +1,10 @@
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use swc_ecma_codegen::text_writer::JsWriter;
 use thiserror::Error;
 
-use crate::{graph, types::shared::Shared};
+use crate::graph;
 
 #[derive(Debug, Error)]
 pub enum BundleError {
@@ -30,7 +31,7 @@ impl From<graph::GraphError> for BundleError {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Bundle {
-  pub graph: Shared<graph::Graph>,
+  pub graph: Arc<graph::Graph>,
 }
 
 impl Bundle {

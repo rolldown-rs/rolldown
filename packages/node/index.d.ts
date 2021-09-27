@@ -1,1 +1,1 @@
-export function rolldown(): Promise<void>
+export function rolldown(entry: string): Promise<Buffer>

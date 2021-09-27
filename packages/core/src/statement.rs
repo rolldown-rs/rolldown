@@ -1,15 +1,20 @@
+use std::sync::{
+  atomic::{AtomicBool, Ordering},
+  Arc,
+};
+
 use swc_ecma_ast::*;
 use swc_ecma_visit::{swc_ecma_ast::FnExpr, Node, Visit, VisitWith};
 
-use crate::{ast::scope::Scope, types::shared::Shared};
+use crate::ast::scope::Scope;
 
 pub struct StatementOptions {}
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct Statement {
   pub node: ModuleItem,
-  pub is_included: bool,
+  pub is_included: AtomicBool,
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
 }
@@ -31,26 +36,25 @@ impl Statement {
     };
     Statement {
       node,
-      is_included: false,
+      is_included: AtomicBool::new(false),
       is_import_declaration,
       is_export_declaration,
     }
   }
 
-  pub fn expand(this: &Shared<Self>) -> Shared<Self> {
-    this.borrow_mut().is_included = true;
-    this.clone()
+  pub fn expand(&self) {
+    self.is_included.store(true, Ordering::Relaxed);
   }
 }
 
 #[non_exhaustive]
 pub struct StatementAnalyser {
-  pub scope: Shared<Scope>,
-  pub new_scope: Option<Shared<Scope>>,
+  pub scope: Arc<Scope>,
+  pub new_scope: Option<Arc<Scope>>,
 }
 
 impl StatementAnalyser {
-  pub fn new(root_scope: Shared<Scope>) -> Self {
+  pub fn new(root_scope: Arc<Scope>) -> Self {
     StatementAnalyser {
       scope: root_scope,
       new_scope: None,
@@ -69,7 +73,7 @@ impl StatementAnalyser {
 
   pub fn leave(&mut self) {
     if let Some(new_scope) = &self.new_scope {
-      self.scope = new_scope.borrow().parent.as_ref().unwrap().clone()
+      self.scope = new_scope.parent.as_ref().unwrap().clone()
     }
   }
 }
@@ -78,7 +82,7 @@ impl Visit for StatementAnalyser {
   fn visit_fn_expr(&mut self, node: &FnExpr, _parent: &dyn Node) {
     self.enter();
     let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
-    self.new_scope = Some(Shared::new(Scope::new(
+    self.new_scope = Some(Arc::new(Scope::new(
       Some(self.scope.clone()),
       Some(params),
       false,
@@ -97,10 +101,9 @@ impl Visit for StatementAnalyser {
     self.enter();
     self
       .scope
-      .borrow_mut()
       .add_declaration(&node.ident.sym.to_string(), Decl::Fn(node.clone()));
     let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
-    self.new_scope = Some(Shared::new(Scope::new(
+    self.new_scope = Some(Arc::new(Scope::new(
       Some(self.scope.clone()),
       Some(params),
       false,
@@ -112,7 +115,7 @@ impl Visit for StatementAnalyser {
 
   fn visit_arrow_expr(&mut self, node: &ArrowExpr, _parent: &dyn Node) {
     self.enter();
-    self.new_scope = Some(Shared::new(Scope::new(
+    self.new_scope = Some(Arc::new(Scope::new(
       Some(self.scope.clone()),
       Some(node.params.clone()),
       false,
@@ -127,11 +130,7 @@ impl Visit for StatementAnalyser {
     self.enter();
 
     // TODO: should check whether this block is belong to function
-    self.new_scope = Some(Shared::new(Scope::new(
-      Some(self.scope.clone()),
-      None,
-      true,
-    )));
+    self.new_scope = Some(Arc::new(Scope::new(Some(self.scope.clone()), None, true)));
 
     self.before_fold_children();
     node.visit_children_with(self);
@@ -142,7 +141,7 @@ impl Visit for StatementAnalyser {
     // enter ---
     self.enter();
     let params: Vec<Pat> = node.param.as_ref().map_or(vec![], |p| vec![p.clone()]);
-    self.new_scope = Some(Shared::new(Scope::new(
+    self.new_scope = Some(Arc::new(Scope::new(
       Some(self.scope.clone()),
       Some(params),
       false,
@@ -156,10 +155,7 @@ impl Visit for StatementAnalyser {
     node.decls.iter().for_each(|declarator| {
       if let Pat::Ident(binding_ident) = &declarator.name {
         let name = binding_ident.id.sym.to_string();
-        self
-          .scope
-          .borrow_mut()
-          .add_declaration(&name, Decl::Var(node.clone()));
+        self.scope.add_declaration(&name, Decl::Var(node.clone()));
       };
     });
     self.before_fold_children();
@@ -171,7 +167,6 @@ impl Visit for StatementAnalyser {
     self.enter();
     self
       .scope
-      .borrow_mut()
       .add_declaration(&node.ident.sym.to_string(), Decl::Class(node.clone()));
     self.before_fold_children();
     node.visit_children_with(self);
