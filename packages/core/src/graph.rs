@@ -3,6 +3,7 @@ use std::io;
 use std::sync::Arc;
 
 use once_cell::sync::Lazy;
+use rayon::prelude::*;
 use swc_common::sync::RwLock;
 use swc_common::DUMMY_SP;
 use swc_common::{sync::Lrc, SourceMap};
@@ -66,7 +67,7 @@ impl Graph {
 
   pub fn get_swc_module(&self) -> Option<swc_ecma_ast::Module> {
     let statements = Module::expand_all_statements(self.entry_module.as_ref()?, true);
-    let body = statements.iter().map(|s| s.node.clone()).collect();
+    let body = statements.par_iter().map(|s| s.node.clone()).collect();
 
     Some(swc_ecma_ast::Module {
       span: DUMMY_SP,

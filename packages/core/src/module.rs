@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{atomic::Ordering, Arc};
 
+use rayon::prelude::*;
 use swc_common::{
   errors::{ColorConfig, Handler},
   FileName,
@@ -46,99 +47,105 @@ impl Module {
   }
 
   pub fn analyse(&mut self) {
-    let mut imports = HashMap::new();
     // analyse imports and exports
-    self
+    // @TODO
+    // Handle duplicated
+    self.imports = self
       .statements
-      .iter()
+      .par_iter()
       .filter(|s| s.is_import_declaration)
-      .map(|s| &s.node)
-      .for_each(|module_item| {
+      .filter_map(|s| {
+        let module_item = &s.node;
         if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = module_item {
-          import_decl.specifiers.iter().for_each(|specifier| {
-            let local_name;
-            let name;
-            match specifier {
-              // import foo from './foo'
-              swc_ecma_ast::ImportSpecifier::Default(n) => {
-                local_name = n.local.sym.to_string();
-                name = "default".to_owned();
-              }
-              // import { foo } from './foo'
-              // import { foo as foo2 } from './foo'
-              swc_ecma_ast::ImportSpecifier::Named(n) => {
-                local_name = n.local.sym.to_string();
-                name = n.imported.as_ref().map_or(
-                  local_name.clone(), // `import { foo } from './foo'` doesn't has local name
-                  |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has local name '_foo'
-                );
-              }
-              // import * as foo from './foo'
-              swc_ecma_ast::ImportSpecifier::Namespace(n) => {
-                local_name = n.local.sym.to_string();
-                name = "*".to_owned()
-              }
-            }
-            if imports.contains_key(&local_name) {
-              panic!("Duplicated import {:?}", local_name);
-            }
-            imports.insert(
-              local_name.clone(),
-              ImportDesc {
-                source: import_decl.src.value.to_string(),
-                name,
-                local_name,
-              },
-            );
-          });
+          Some(
+            import_decl
+              .specifiers
+              .par_iter()
+              .filter_map(move |specifier| {
+                let local_name;
+                let name;
+                match specifier {
+                  // import foo from './foo'
+                  swc_ecma_ast::ImportSpecifier::Default(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = "default".to_owned();
+                  }
+                  // import { foo } from './foo'
+                  // import { foo as foo2 } from './foo'
+                  swc_ecma_ast::ImportSpecifier::Named(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = n.imported.as_ref().map_or(
+                      local_name.clone(), // `import { foo } from './foo'` doesn't has local name
+                      |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has local name '_foo'
+                    );
+                  }
+                  // import * as foo from './foo'
+                  swc_ecma_ast::ImportSpecifier::Namespace(n) => {
+                    local_name = n.local.sym.to_string();
+                    name = "*".to_owned()
+                  }
+                }
+                Some((
+                  local_name.clone(),
+                  ImportDesc {
+                    source: import_decl.src.value.to_string(),
+                    name,
+                    local_name,
+                  },
+                ))
+              }),
+          )
+        } else {
+          None
         }
-      });
-
-    self.imports = imports;
+      })
+      .flatten()
+      .collect()
   }
 
   pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<Statement>> {
-    let mut all_statements: Vec<Arc<Statement>> = vec![];
-    self.statements.iter().for_each(|statement| {
-      if statement.is_included.load(Ordering::Relaxed) {
-        return;
-      }
-      if let ModuleItem::ModuleDecl(module_decl) = &statement.node {
-        match module_decl {
-          ModuleDecl::Import(import_decl) => {
-            // TODO: delete unused `import './foo'` that has no effects
-            if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
-              &self.graph,
-              &import_decl.src.value.to_string(),
-              Some(&self.id),
-            ) {
-              let mut statements = m.expand_all_statements(false);
-              all_statements.append(&mut statements);
-            };
-            return;
-          }
-          ModuleDecl::ExportNamed(node) => {
-            // export { foo } from './foo'
-            // export { foo as foo2 } from './foo'
-            // export * as foo from './foo'
-            if let Some(src) = &node.src {
-              if let Ok(ModOrExt::Mod(ref m)) =
-                Graph::fetch_module(&self.graph, &src.value.to_string(), Some(&self.id))
-              {
-                let mut statements = m.expand_all_statements(false);
-                all_statements.append(&mut statements);
-              };
-            }
-            return;
-          }
-          _ => {}
+    self
+      .statements
+      .par_iter()
+      .filter_map(|statement| {
+        if statement.is_included.load(Ordering::Relaxed) {
+          return None;
         }
-      }
+        if let ModuleItem::ModuleDecl(module_decl) = &statement.node {
+          match module_decl {
+            ModuleDecl::Import(import_decl) => {
+              // TODO: delete unused `import './foo'` that has no effects
+              if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
+                &self.graph,
+                &import_decl.src.value.to_string(),
+                Some(&self.id),
+              ) {
+                return Some(m.expand_all_statements(false));
+              };
+              return None;
+            }
+            ModuleDecl::ExportNamed(node) => {
+              // export { foo } from './foo'
+              // export { foo as foo2 } from './foo'
+              // export * as foo from './foo'
+              if let Some(src) = &node.src {
+                if let Ok(ModOrExt::Mod(ref m)) =
+                  Graph::fetch_module(&self.graph, &src.value.to_string(), Some(&self.id))
+                {
+                  return Some(m.expand_all_statements(false));
+                };
+              }
+              return None;
+            }
+            _ => {}
+          }
+        }
 
-      statement.expand();
-      all_statements.push(statement.clone());
-    });
-    all_statements
+        statement.expand();
+        Some(vec![statement.clone()])
+      })
+      .flatten()
+      .collect()
   }
 
   pub fn get_ast(&self) -> swc_ecma_ast::Module {

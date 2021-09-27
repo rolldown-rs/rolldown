@@ -10,6 +10,7 @@ async function bench() {
   await build({
     entryPoints: [ENTRY],
     bundle: true,
+    treeShaking: false,
     sourcemap: false,
     minify: false,
     splitting: false,
@@ -18,6 +19,11 @@ async function bench() {
   const esbuildDuration = process.hrtime.bigint() - beforeEsbuild
   console.info('esbuild: ', Number(esbuildDuration / BigInt(1e6)).toFixed(2), 'ms')
 
+  const beforeRolldown = process.hrtime.bigint()
+  await rolldown(ENTRY)
+  const rolldownDuration = process.hrtime.bigint() - beforeRolldown
+  console.info('rolldown: ', Number(rolldownDuration / BigInt(1e6)).toFixed(2), 'ms')
+
   const beforeRollup = process.hrtime.bigint()
   await rollup({
     input: ENTRY,
@@ -25,11 +31,6 @@ async function bench() {
   })
   const rollupDuration = process.hrtime.bigint() - beforeRollup
   console.info('rollup: ', Number(rollupDuration / BigInt(1e6)).toFixed(2), 'ms')
-
-  const beforeRolldown = process.hrtime.bigint()
-  await rolldown(ENTRY)
-  const rolldownDuration = process.hrtime.bigint() - beforeRolldown
-  console.info('rolldown: ', Number(rolldownDuration / BigInt(1e6)).toFixed(2), 'ms')
 }
 
 bench().catch((e) => {

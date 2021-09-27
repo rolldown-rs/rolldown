@@ -46,6 +46,7 @@ impl HookDriver {
     result.set_extension("js");
     result.to_str().map(|p| p.to_owned())
   }
+
   pub fn load(&self, id: &str) -> io::Result<String> {
     std::fs::read_to_string(id)
   }
