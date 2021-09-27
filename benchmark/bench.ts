@@ -1,21 +1,24 @@
+import { join } from 'path'
+
 import b from 'benny'
+import { rollup } from 'rollup'
 
-import { sync } from '../index'
+import { rolldown } from '../packages/node'
 
-function add(a: number) {
-  return a + 100
-}
+const ENTRY = join(__dirname, 'fixtures', 'main.js')
 
 async function run() {
   await b.suite(
-    'Add 100',
+    'Bundle simple file',
 
-    b.add('Native a + 100', () => {
-      sync(10)
+    b.add('Rollup', async () => {
+      await rollup({
+        input: ENTRY,
+      })
     }),
 
-    b.add('JavaScript a + 100', () => {
-      add(10)
+    b.add('Rolldown', async () => {
+      await rolldown(ENTRY)
     }),
 
     b.cycle(),

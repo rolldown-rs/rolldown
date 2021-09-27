@@ -63,13 +63,16 @@ mod tests {
 
   #[test]
   fn e2e() {
-    let bundle = Bundle::new("demo/main.js").expect("Create bundle failed");
+    let bundle = Bundle::new("fixtures/main.js").expect("Create bundle failed");
     let mut output = Vec::new();
     assert!(bundle.generate(&mut output).is_ok());
     assert_eq!(
       String::from_utf8(output).expect("Output is not utf8"),
       r#"export default function add(a, b) {
     return a + b;
+};
+export const noUsed = ()=>{
+    return `I'm no used function`;
 };
 export default function mul(a, b) {
     let result = 0;
@@ -78,7 +81,7 @@ export default function mul(a, b) {
     }
     return result;
 };
-window.console.log(mul(8, 9));
+console.log(mul(8, 9));
 "#
     )
   }

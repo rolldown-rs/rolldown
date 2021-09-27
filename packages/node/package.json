@@ -6,7 +6,7 @@
   "author": "LongYinan <lynweklm@gmail.com>",
   "homepage": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",
-  "main": "lib/index.js",
+  "main": "index.js",
   "napi": {
     "name": "rolldown",
     "triples": {

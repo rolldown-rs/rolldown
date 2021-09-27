@@ -17,6 +17,7 @@
   },
   "scripts": {
     "artifacts": "lerna run artifacts",
+    "bench": "node -r @swc-node/register ./benchmark/bench.ts",
     "build": "napi build --platform --release --cargo-cwd ./packages/node -c ./packages/node/package.json",
     "lint": "eslint . -c ./.eslintrc.yml \"packages/**/*.{ts,js}\"",
     "test": "ava",
@@ -47,6 +48,7 @@
     "lint-staged": "^11.1.2",
     "npm-run-all": "^4.1.5",
     "prettier": "^2.4.1",
+    "rollup": "^2.57.0",
     "typescript": "^4.4.3"
   },
   "dependencies": {
