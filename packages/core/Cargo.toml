@@ -13,6 +13,7 @@ test = false
 [dependencies.swc_common]
 features = ["tty-emitter", "concurrent"]
 version = "0.13.2"
+# path = "../../../swc/common"
 
 [dependencies]
 ahash = "0.7"
@@ -26,4 +27,8 @@ swc_ecma_ast = "0.54"
 swc_ecma_codegen = "0.74"
 swc_ecma_parser = "0.73"
 swc_ecma_visit = "0.40"
+# swc_ecma_ast = {path = "../../../swc/ecmascript/ast"}
+# swc_ecma_codegen = {path = "../../../swc/ecmascript/codegen"}
+# swc_ecma_parser = {path = "../../../swc/ecmascript/parser"}
+# swc_ecma_visit = {path = "../../../swc/ecmascript/visit"}
 thiserror = "1"

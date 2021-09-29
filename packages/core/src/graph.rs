@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
+use std::time;
 
 use ahash::RandomState;
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
-use swc_common::sync::RwLock;
-use swc_common::DUMMY_SP;
-use swc_common::{sync::Lrc, SourceMap};
+use swc_common::{
+  sync::{Lrc, RwLock},
+  SourceMap,
+};
+use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use thiserror::Error;
 
 use crate::{external_module::ExternalModule, hook_driver::HookDriver, module::Module};
@@ -34,8 +37,8 @@ impl From<io::Error> for GraphError {
 #[non_exhaustive]
 pub struct Graph {
   pub entry: String,
-  pub entry_module: Arc<Module>,
-  pub modules_by_id: RwLock<HashMap<String, ModOrExt, RandomState>>,
+  pub entry_module: Option<Arc<Module>>,
+  pub modules_by_id: Arc<RwLock<HashMap<String, ModOrExt, RandomState>>>,
   pub hook_driver: HookDriver,
   pub(crate) parent_dir_cache: RwLock<HashMap<String, String, RandomState>>,
 }
@@ -45,9 +48,8 @@ impl Graph {
   pub fn build(entry: &str) -> Result<Arc<Self>, GraphError> {
     // generate the entry module
     let hook_driver = HookDriver::new();
-    let modules_by_id: RwLock<HashMap<String, ModOrExt, RandomState>> =
-      RwLock::new(HashMap::default());
-    let parent_dir_cache = RwLock::new(HashMap::default());
+    let modules_by_id: Arc<RwLock<HashMap<String, ModOrExt, RandomState>>> =
+      Arc::new(RwLock::new(HashMap::default()));
     let mut real_modules_by_id: HashMap<String, ModOrExt, RandomState> = HashMap::default();
     let id = hook_driver
       .resolve_id(entry, None, &parent_dir_cache)
@@ -62,25 +64,42 @@ impl Graph {
     });
     let entry_module = Arc::new(Module::new(source, id.to_string(), &ret));
     let graph = Arc::make_mut(&mut ret);
-    let module = ModOrExt::Mod(entry_module.clone());
-    real_modules_by_id.insert(id, module);
-    graph.entry_module = entry_module;
-    graph.modules_by_id = RwLock::new(real_modules_by_id);
+    let entry_module = Arc::new(Module::new(source, id.to_string(), ret_cloned));
+    real_modules_by_id.insert(id, ModOrExt::Mod(entry_module.clone()));
+    graph.entry_module = Some(entry_module);
+    graph.modules_by_id = Arc::new(RwLock::new(real_modules_by_id));
     Ok(ret)
   }
 
-  pub fn get_swc_module(&self) -> Option<swc_ecma_ast::Module> {
-    let statements = Module::expand_all_statements(self.entry_module.as_ref(), true);
-    let body = statements.par_iter().map(|s| s.node.clone()).collect();
+  pub fn get_swc_module_items<F>(&self, codegen: F)
+  where
+    F: FnOnce(Vec<&swc_ecma_ast::ModuleItem>),
+  {
+    let collect_all_modules_duration = time::Instant::now();
+    let modules = Module::expand_all_modules(self.entry_module.clone().unwrap(), true);
+    println!(
+      "collect all modules duration {:?}",
+      collect_all_modules_duration.elapsed()
+    );
 
-    Some(swc_ecma_ast::Module {
-      span: DUMMY_SP,
-      body,
-      shebang: None,
-    })
+    codegen(
+      modules
+        .par_iter()
+        .flat_map(|s| {
+          s.swc_module.body.par_iter().filter(|m| match m {
+            ModuleItem::Stmt(_) => true,
+            ModuleItem::ModuleDecl(decl) => match decl {
+              &ModuleDecl::Import(_) => false,
+              &ModuleDecl::TsImportEquals(_) => false,
+              _ => true,
+            },
+          })
+        })
+        .collect(),
+    );
   }
 
-  pub(crate) fn get_module(&self, id: &str) -> Option<ModOrExt> {
+  pub(crate) fn get_module<'a>(&'a self, id: &str) -> Option<ModOrExt> {
     let read_guard = self.modules_by_id.read();
     read_guard.get(id).cloned()
   }

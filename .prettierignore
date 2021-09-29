@@ -1,3 +1,4 @@
 target
 pnpm-lock.yaml
 **/fixtures/**
+benchmark/three.js

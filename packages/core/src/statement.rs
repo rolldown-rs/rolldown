@@ -1,7 +1,4 @@
-use std::sync::{
-  atomic::{AtomicBool, Ordering},
-  Arc,
-};
+use std::sync::Arc;
 
 use swc_ecma_ast::*;
 use swc_ecma_visit::{swc_ecma_ast::FnExpr, Node, Visit, VisitWith};
@@ -12,15 +9,14 @@ pub struct StatementOptions {}
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct Statement {
-  pub node: ModuleItem,
-  pub is_included: AtomicBool,
+pub struct Statement<'a> {
+  pub node: &'a ModuleItem,
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
 }
 
-impl Statement {
-  pub fn new(node: ModuleItem) -> Self {
+impl<'a> Statement<'a> {
+  pub fn new(node: &'a ModuleItem) -> Self {
     let is_import_declaration = matches!(&node, ModuleItem::ModuleDecl(ModuleDecl::Import(_)));
     let is_export_declaration = if let ModuleItem::ModuleDecl(module_decl) = &node {
       matches!(
@@ -36,14 +32,9 @@ impl Statement {
     };
     Statement {
       node,
-      is_included: AtomicBool::new(false),
       is_import_declaration,
       is_export_declaration,
     }
-  }
-
-  pub fn expand(&self) {
-    self.is_included.store(true, Ordering::Relaxed);
   }
 }
 
@@ -97,6 +88,7 @@ impl Visit for StatementAnalyser {
     node.visit_children_with(self);
     self.leave();
   }
+
   fn visit_fn_decl(&mut self, node: &FnDecl, _parent: &dyn Node) {
     self.enter();
     self
@@ -150,6 +142,7 @@ impl Visit for StatementAnalyser {
     node.visit_children_with(self);
     self.leave();
   }
+
   fn visit_var_decl(&mut self, node: &VarDecl, _parent: &dyn Node) {
     self.enter();
     node.decls.iter().for_each(|declarator| {
@@ -162,6 +155,7 @@ impl Visit for StatementAnalyser {
     node.visit_children_with(self);
     self.leave();
   }
+
   fn visit_class_decl(&mut self, node: &ClassDecl, _parent: &dyn Node) {
     // enter ---
     self.enter();

@@ -14,7 +14,7 @@
   "scripts": {
     "artifacts": "lerna run artifacts",
     "bench": "node -r @swc-node/register ./benchmark/bench.ts",
-    "bench:lodash": "node -r @swc-node/register ./benchmark/lodash.ts",
+    "bench:bundle": "node -r @swc-node/register ./benchmark/bundle.ts",
     "build": "napi build --platform --release --cargo-cwd ./packages/node -c ./packages/node/package.json",
     "lint": "eslint . -c ./.eslintrc.yml",
     "test": "ava",

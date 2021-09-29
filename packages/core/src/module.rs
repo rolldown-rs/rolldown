@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::{atomic::Ordering, Arc};
 
 use ahash::RandomState;
@@ -19,53 +20,68 @@ pub struct Module {
   pub source: String,
   pub graph: *const Graph,
   pub id: String,
-  pub statements: Vec<Arc<Statement>>,
+  pub(crate) swc_module: swc_ecma_ast::Module,
   pub imports: HashMap<String, ImportDesc, RandomState>,
   pub exports: HashMap<String, ExportDesc, RandomState>,
+  is_included: Arc<AtomicBool>,
 }
 
 unsafe impl Sync for Module {}
 
 impl Module {
-  pub(crate) fn empty() -> Self {
-    Self {
-      graph: std::ptr::null(),
-      source: "".to_owned(),
-      id: "".to_owned(),
-      statements: vec![],
-      imports: HashMap::default(),
-      exports: HashMap::default(),
-    }
-  }
-
-  pub fn new(source: String, id: String, graph: &Arc<Graph>) -> Self {
+  pub fn new(source: String, id: String, graph: Arc<Graph>) -> Self {
+    let ast = Module::get_ast(source.clone(), id.clone());
     let mut module = Module {
-      graph: Arc::as_ptr(graph),
       source,
+      graph,
       id,
-      statements: vec![],
+      is_included: Arc::new(AtomicBool::new(false)),
+      swc_module: ast,
       imports: HashMap::default(),
       exports: HashMap::default(),
     };
-
-    let ast = module.get_ast();
-    let statements = ast
-      .body
-      .into_par_iter()
-      .map(|node| Arc::new(Statement::new(node)))
-      .collect::<Vec<_>>();
-    module.statements = statements;
-
-    module.analyse();
+    // module.imports = Module::analyse(&module.statements);
     module
   }
 
-  pub fn analyse(&mut self) {
+  fn get_ast(source: String, filename: String) -> swc_ecma_ast::Module {
+    let handler = Handler::with_tty_emitter(
+      ColorConfig::Auto,
+      true,
+      false,
+      Some(graph::SOURCE_MAP.clone()),
+    );
+    let fm = graph::SOURCE_MAP.new_source_file(FileName::Custom(filename), source);
+
+    let lexer = Lexer::new(
+      // We want to parse ecmascript
+      Syntax::Es(Default::default()),
+      // JscTarget defaults to es5
+      Default::default(),
+      StringInput::from(&*fm),
+      None,
+    );
+
+    let mut parser = Parser::new_from(lexer);
+
+    for e in parser.take_errors() {
+      e.into_diagnostic(&handler).emit();
+    }
+
+    parser
+      .parse_module()
+      .map_err(|e| {
+        // Unrecoverable fatal error occurred
+        e.into_diagnostic(&handler).emit()
+      })
+      .expect("failed to parser module")
+  }
+
+  fn analyse(statements: &[Arc<Statement>]) -> HashMap<String, ImportDesc, RandomState> {
     // analyse imports and exports
     // @TODO
     // Handle duplicated
-    self.imports = self
-      .statements
+    statements
       .par_iter()
       .filter(|s| s.is_import_declaration)
       .filter_map(|s| {
@@ -117,24 +133,24 @@ impl Module {
       .collect()
   }
 
-  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<Statement>> {
-    self
-      .statements
+  pub fn expand_all_modules(this: Arc<Self>, _is_entry_module: bool) -> Vec<Arc<Self>> {
+    this
+      .swc_module
+      .body
       .par_iter()
-      .filter_map(|statement| {
-        if statement.is_included.load(Ordering::Relaxed) {
-          return None;
-        }
-        if let ModuleItem::ModuleDecl(module_decl) = &statement.node {
+      .filter_map(|module_item| {
+        if let ModuleItem::ModuleDecl(module_decl) = module_item {
           match module_decl {
             ModuleDecl::Import(import_decl) => {
-              // TODO: delete unused `import './foo'` that has no effects
-              if let Ok(ModOrExt::Mod(ref m)) = Graph::fetch_module(
-                &self.get_graph(),
+              if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
+                &this.graph,
                 &import_decl.src.value.to_string(),
-                Some(&self.id),
+                Some(&this.id),
               ) {
-                return Some(m.expand_all_statements(false));
+                if m.is_included.load(Ordering::Relaxed) {
+                  return None;
+                }
+                return Some(Module::expand_all_modules(m, false));
               };
               return None;
             }
@@ -143,10 +159,10 @@ impl Module {
               // export { foo as foo2 } from './foo'
               // export * as foo from './foo'
               if let Some(src) = &node.src {
-                if let Ok(ModOrExt::Mod(ref m)) =
-                  Graph::fetch_module(&self.get_graph(), &src.value.to_string(), Some(&self.id))
+                if let Ok(ModOrExt::Mod(m)) =
+                  Graph::fetch_module(&this.graph, &src.value.to_string(), Some(&this.id))
                 {
-                  return Some(m.expand_all_statements(false));
+                  return Some(Module::expand_all_modules(m, false));
                 };
               }
               return None;
@@ -155,45 +171,15 @@ impl Module {
           }
         }
 
-        statement.expand();
-        Some(vec![statement.clone()])
+        this.expand();
+        Some(vec![this.clone()])
       })
       .flatten()
       .collect()
   }
 
-  pub fn get_ast(&self) -> swc_ecma_ast::Module {
-    let handler = Handler::with_tty_emitter(
-      ColorConfig::Auto,
-      true,
-      false,
-      Some(graph::SOURCE_MAP.clone()),
-    );
-    let fm =
-      graph::SOURCE_MAP.new_source_file(FileName::Custom(self.id.clone()), self.source.clone());
-
-    let lexer = Lexer::new(
-      // We want to parse ecmascript
-      Syntax::Es(Default::default()),
-      // JscTarget defaults to es5
-      Default::default(),
-      StringInput::from(&*fm),
-      None,
-    );
-
-    let mut parser = Parser::new_from(lexer);
-
-    for e in parser.take_errors() {
-      e.into_diagnostic(&handler).emit();
-    }
-
-    parser
-      .parse_module()
-      .map_err(|e| {
-        // Unrecoverable fatal error occurred
-        e.into_diagnostic(&handler).emit()
-      })
-      .expect("failed to parser module")
+  fn expand(&self) {
+    self.is_included.store(true, Ordering::Relaxed);
   }
 
   fn get_graph(&self) -> Arc<Graph> {

@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::sync::Arc;
+use std::time;
 
 use swc_common::{BytePos, LineCol};
 use swc_ecma_codegen::text_writer::JsWriter;
@@ -44,24 +45,29 @@ impl Bundle {
   }
 
   pub fn generate<W: Write>(
-    &self,
+    self,
     w: W,
     sm: Option<&mut Vec<(BytePos, LineCol)>>,
   ) -> Result<(), BundleError> {
-    let node = self.graph.get_swc_module().ok_or(BundleError::NoModule)?;
-    let mut emitter = swc_ecma_codegen::Emitter {
-      cfg: swc_ecma_codegen::Config { minify: false },
-      cm: graph::SOURCE_MAP.clone(),
-      comments: None,
-      wr: Box::new(JsWriter::with_target(
-        graph::SOURCE_MAP.clone(),
-        "\n",
-        w,
-        sm,
-        JscTarget::latest(),
-      )),
-    };
-    emitter.emit_module(&node)?;
+    self.graph.get_swc_module_items(|items| {
+      let emitter_time = time::Instant::now();
+      let mut emitter = swc_ecma_codegen::Emitter {
+        cfg: swc_ecma_codegen::Config { minify: false },
+        cm: graph::SOURCE_MAP.clone(),
+        comments: None,
+        wr: Box::new(JsWriter::with_target(
+          graph::SOURCE_MAP.clone(),
+          "\n",
+          w,
+          sm,
+          JscTarget::latest(),
+        )),
+      };
+      items.iter().for_each(|item| {
+        emitter.emit_module_item(&item).unwrap();
+      });
+      println!("Emitter time {:?}", emitter_time.elapsed());
+    });
     Ok(())
   }
 }
