@@ -12,7 +12,7 @@ test = false
 
 [dependencies.swc_common]
 features = ["tty-emitter", "concurrent"]
-version = "0.13.0"
+version = "0.13.1"
 
 [dependencies]
 ahash = "0.7"
