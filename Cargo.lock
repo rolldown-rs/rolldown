@@ -875,10 +875,10 @@ dependencies = [
  "path-absolutize",
  "rayon",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.53.0",
  "swc_ecma_codegen",
  "swc_ecma_parser",
- "swc_ecma_visit",
+ "swc_ecma_visit 0.40.0",
  "thiserror",
 ]
 
@@ -1131,6 +1131,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "swc_ecma_ast"
+version = "0.54.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1afd2387a9fd056c18dd778cae7fee64c368824eaa660b82dc22af5124edcb5"
+dependencies = [
+ "is-macro",
+ "num-bigint",
+ "serde",
+ "string_enum",
+ "swc_atoms",
+ "swc_common",
+]
+
+[[package]]
 name = "swc_ecma_codegen"
 version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1141,7 +1155,7 @@ dependencies = [
  "sourcemap",
  "swc_atoms",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.53.0",
  "swc_ecma_codegen_macros",
  "swc_ecma_parser",
 ]
@@ -1174,8 +1188,8 @@ dependencies = [
  "smallvec 1.6.1",
  "swc_atoms",
  "swc_common",
- "swc_ecma_ast",
- "swc_ecma_visit",
+ "swc_ecma_ast 0.53.0",
+ "swc_ecma_visit 0.39.0",
  "tracing",
  "unicode-xid",
 ]
@@ -1189,7 +1203,20 @@ dependencies = [
  "num-bigint",
  "swc_atoms",
  "swc_common",
- "swc_ecma_ast",
+ "swc_ecma_ast 0.53.0",
+ "swc_visit",
+]
+
+[[package]]
+name = "swc_ecma_visit"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c24a7600061813d7df3248d93ff27cacc1a81f9eeec47701866f3adc9ae2930"
+dependencies = [
+ "num-bigint",
+ "swc_atoms",
+ "swc_common",
+ "swc_ecma_ast 0.54.0",
  "swc_visit",
 ]
 
