@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
 use swc_ecma_visit::{swc_ecma_ast::FnExpr, Node, Visit, VisitWith};
 
@@ -9,14 +10,18 @@ pub struct StatementOptions {}
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct Statement<'a> {
-  pub node: &'a ModuleItem,
+pub struct Statement {
+  node: *mut ModuleItem,
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
+  pub is_included: RwLock<bool>,
 }
 
-impl<'a> Statement<'a> {
-  pub fn new(node: &'a ModuleItem) -> Self {
+unsafe impl Send for Statement {}
+unsafe impl Sync for Statement {}
+
+impl Statement {
+  pub fn new(node: ModuleItem) -> Self {
     let is_import_declaration = matches!(&node, ModuleItem::ModuleDecl(ModuleDecl::Import(_)));
     let is_export_declaration = if let ModuleItem::ModuleDecl(module_decl) = &node {
       matches!(
@@ -31,10 +36,19 @@ impl<'a> Statement<'a> {
       false
     };
     Statement {
-      node,
+      node: Box::into_raw(Box::new(node)),
       is_import_declaration,
       is_export_declaration,
+      is_included: RwLock::new(false),
     }
+  }
+
+  pub fn get_node(&self) -> &ModuleItem {
+    unsafe { Box::leak(Box::from_raw(self.node)) }
+  }
+
+  pub fn take_node(&self) -> ModuleItem {
+    unsafe { *Box::from_raw(self.node) }
   }
 }
 

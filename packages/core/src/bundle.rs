@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 use std::sync::Arc;
-use std::time;
+use std::{mem, time};
 
-use swc_common::{BytePos, LineCol};
+use swc_common::{BytePos, LineCol, DUMMY_SP};
 use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_parser::JscTarget;
 use thiserror::Error;
@@ -49,7 +49,7 @@ impl Bundle {
     w: W,
     sm: Option<&mut Vec<(BytePos, LineCol)>>,
   ) -> Result<(), BundleError> {
-    self.graph.get_swc_module_items(|items| {
+    self.graph.get_swc_module_items(|mut items| {
       let emitter_time = time::Instant::now();
       let mut emitter = swc_ecma_codegen::Emitter {
         cfg: swc_ecma_codegen::Config { minify: false },
@@ -63,10 +63,14 @@ impl Bundle {
           JscTarget::latest(),
         )),
       };
-      items.iter().for_each(|item| {
-        emitter.emit_module_item(&item).unwrap();
-      });
-      println!("Emitter time {:?}", emitter_time.elapsed());
+      let mut dest_module = swc_ecma_ast::Module {
+        shebang: None,
+        body: vec![],
+        span: DUMMY_SP,
+      };
+      mem::swap(&mut dest_module.body, &mut items);
+      emitter.emit_module(&dest_module).unwrap();
+      // println!("Emitter time {:?}", emitter_time.elapsed());
     });
     Ok(())
   }

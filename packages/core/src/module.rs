@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
 use std::sync::{atomic::Ordering, Arc};
 
@@ -19,7 +20,7 @@ use crate::statement::Statement;
 pub struct Module {
   pub source: String,
   pub graph: *const Graph,
-  pub(crate) swc_module: Option<swc_ecma_ast::Module>,
+  pub(crate) swc_module: Option<*mut swc_ecma_ast::Module>,
   pub id: String,
   pub imports: HashMap<String, ImportDesc, RandomState>,
   pub exports: HashMap<String, ExportDesc, RandomState>,
@@ -44,7 +45,10 @@ impl Module {
 
   pub fn new(source: String, id: String, graph: &Arc<Graph>) -> Self {
     let module = Module {
-      swc_module: Some(Module::get_ast(source.clone(), id.clone())),
+      swc_module: Some(Box::into_raw(Box::new(Module::get_ast(
+        source.clone(),
+        id.clone(),
+      )))),
       source,
       id: id.clone(),
       graph: Arc::as_ptr(&graph),
@@ -97,8 +101,7 @@ impl Module {
       .iter()
       .filter(|s| s.is_import_declaration)
       .filter_map(|s| {
-        let module_item = &s.node;
-        if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = module_item {
+        if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = s.get_node() {
           Some(import_decl.specifiers.iter().filter_map(move |specifier| {
             let local_name;
             let name;
@@ -140,28 +143,32 @@ impl Module {
       .collect()
   }
 
-  pub fn expand_all_modules(this: Arc<Self>, _is_entry_module: bool) -> Vec<Arc<Self>> {
-    this
-      .swc_module
-      .as_ref()
-      .unwrap()
+  pub fn expand_all_modules(&self, _is_entry_module: bool) -> Vec<swc_ecma_ast::ModuleItem> {
+    self
+      .take_swc_module()
       .body
-      .iter()
-      .filter_map(|module_item| {
-        if let ModuleItem::ModuleDecl(module_decl) = module_item {
+      .into_par_iter()
+      .map(|i| Statement::new(i))
+      .flat_map(|statement| {
+        let read_lock = statement.is_included.read();
+        if *read_lock.deref() {
+          return vec![];
+        }
+        std::mem::drop(read_lock);
+        if let ModuleItem::ModuleDecl(module_decl) = statement.get_node() {
           match module_decl {
             ModuleDecl::Import(import_decl) => {
               if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
-                &this.get_graph(),
+                &self.get_graph(),
                 &import_decl.src.value.to_string(),
-                Some(&this.id),
+                Some(&self.id),
               ) {
-                if m.is_included.load(Ordering::Relaxed) {
-                  return None;
+                if m.is_included.swap(true, Ordering::SeqCst) {
+                  return vec![];
                 }
-                return Some(Module::expand_all_modules(m, false));
+                return Module::expand_all_modules(&m, false);
               };
-              return None;
+              return vec![];
             }
             ModuleDecl::ExportNamed(node) => {
               // export { foo } from './foo'
@@ -169,26 +176,33 @@ impl Module {
               // export * as foo from './foo'
               if let Some(src) = &node.src {
                 if let Ok(ModOrExt::Mod(m)) =
-                  Graph::fetch_module(&this.get_graph(), &src.value.to_string(), Some(&this.id))
+                  Graph::fetch_module(&self.get_graph(), &src.value.to_string(), Some(&self.id))
                 {
-                  return Some(Module::expand_all_modules(m, false));
+                  if m.is_included.swap(true, Ordering::SeqCst) {
+                    return vec![];
+                  }
+                  return Module::expand_all_modules(&m, false);
                 };
               }
-              return None;
+              return vec![];
             }
             _ => {}
           }
         }
-
-        this.expand();
-        Some(vec![this.clone()])
+        let mut write_lock = statement.is_included.write();
+        *write_lock = true;
+        std::mem::drop(write_lock);
+        vec![statement.take_node()]
       })
-      .flatten()
       .collect()
   }
 
-  fn expand(&self) {
-    self.is_included.store(true, Ordering::Relaxed);
+  fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {
+    unsafe { Box::from_raw(self.swc_module.unwrap()) }
+  }
+
+  fn get_swc_module(&self) -> &mut swc_ecma_ast::Module {
+    unsafe { Box::leak(Box::from_raw(self.swc_module.unwrap())) }
   }
 
   fn get_graph(&self) -> Arc<Graph> {

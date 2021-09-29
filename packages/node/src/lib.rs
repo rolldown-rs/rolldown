@@ -54,7 +54,7 @@ impl Task for Rolldown {
   fn compute(&mut self) -> Result<Self::Output> {
     let bundle = rolldown::Bundle::new(self.entry.as_str())
       .map_err(|err| napi::Error::new(napi::Status::GenericFailure, format!("{}", err)))?;
-    let mut output = Vec::new();
+    let mut output = Vec::with_capacity(1024 * 1024 * 100);
     let mut sm = Vec::new();
     bundle
       .generate(

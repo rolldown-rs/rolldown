@@ -10,7 +10,6 @@ use swc_common::{
   sync::{Lrc, RwLock},
   SourceMap,
 };
-use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use thiserror::Error;
 
 use crate::{external_module::ExternalModule, hook_driver::HookDriver, module::Module};
@@ -73,35 +72,12 @@ impl Graph {
 
   pub fn get_swc_module_items<F>(&self, codegen: F)
   where
-    F: FnOnce(Vec<&swc_ecma_ast::ModuleItem>),
+    F: FnOnce(Vec<swc_ecma_ast::ModuleItem>),
   {
     let collect_all_modules_duration = time::Instant::now();
-    let modules = Module::expand_all_modules(self.entry_module.clone(), true);
-    println!(
-      "collect all modules duration {:?}",
-      collect_all_modules_duration.elapsed()
-    );
+    let modules = Module::expand_all_modules(&self.entry_module, true);
 
-    codegen(
-      modules
-        .iter()
-        .flat_map(|s| {
-          s.swc_module
-            .as_ref()
-            .unwrap()
-            .body
-            .iter()
-            .filter(|m| match m {
-              &ModuleItem::Stmt(_) => true,
-              &ModuleItem::ModuleDecl(decl) => match decl {
-                &ModuleDecl::Import(_) => false,
-                &ModuleDecl::TsImportEquals(_) => false,
-                _ => true,
-              },
-            })
-        })
-        .collect(),
-    );
+    codegen(modules);
   }
 
   pub(crate) fn get_module<'a>(&'a self, id: &str) -> Option<ModOrExt> {

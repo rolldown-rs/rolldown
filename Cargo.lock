@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "swc_common"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "ahash",
  "ast_node",
@@ -1118,10 +1118,12 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_codegen"
-version = "0.73.0"
+version = "0.74.0"
 dependencies = [
  "bitflags",
+ "memchr",
  "num-bigint",
+ "once_cell",
  "sourcemap",
  "swc_atoms",
  "swc_common",
@@ -1132,7 +1134,7 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_codegen_macros"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1143,7 +1145,7 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_parser"
-version = "0.73.0"
+version = "0.73.1"
 dependencies = [
  "either",
  "enum_kind",

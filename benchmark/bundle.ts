@@ -12,7 +12,9 @@ const THREE_JS_ENTRY = join(__dirname, 'three.js', 'src', 'Three.js')
 async function bench(entry: string, entryName: string) {
   const beforeEsbuild = process.hrtime.bigint()
   const name = chalk.blue(entryName)
-  await build({
+  const {
+    outputFiles: [{ text }],
+  } = await build({
     entryPoints: [entry],
     bundle: true,
     treeShaking: false,
@@ -24,14 +26,14 @@ async function bench(entry: string, entryName: string) {
   })
   const esbuildDuration = process.hrtime.bigint() - beforeEsbuild
   console.info(`esbuild [${name}]: `, Number(esbuildDuration / BigInt(1e6)).toFixed(2), 'ms')
-
+  require('fs').writeFileSync(join(__dirname, 'esbuild.js'), text)
   const beforeRolldown = process.hrtime.bigint()
-  await rolldown(entry, {
+  const { code } = await rolldown(entry, {
     sourcemap: true,
   })
   const rolldownDuration = process.hrtime.bigint() - beforeRolldown
   console.info(`rolldown: [${name}]`, Number(rolldownDuration / BigInt(1e6)).toFixed(2), 'ms')
-
+  require('fs').writeFileSync(join(__dirname, 'rolldown.js'), code)
   const beforeRollup = process.hrtime.bigint()
   await rollup({
     input: entry,
