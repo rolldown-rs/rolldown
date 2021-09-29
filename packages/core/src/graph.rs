@@ -37,7 +37,7 @@ impl From<io::Error> for GraphError {
 #[non_exhaustive]
 pub struct Graph {
   pub entry: String,
-  pub entry_module: Option<Arc<Module>>,
+  pub entry_module: Arc<Module>,
   pub modules_by_id: Arc<RwLock<HashMap<String, ModOrExt, RandomState>>>,
   pub hook_driver: HookDriver,
   pub(crate) parent_dir_cache: RwLock<HashMap<String, String, RandomState>>,
@@ -51,6 +51,7 @@ impl Graph {
     let modules_by_id: Arc<RwLock<HashMap<String, ModOrExt, RandomState>>> =
       Arc::new(RwLock::new(HashMap::default()));
     let mut real_modules_by_id: HashMap<String, ModOrExt, RandomState> = HashMap::default();
+    let parent_dir_cache = RwLock::new(HashMap::default());
     let id = hook_driver
       .resolve_id(entry, None, &parent_dir_cache)
       .ok_or_else(|| GraphError::EntryNotFound(entry.to_owned()))?;
@@ -64,9 +65,8 @@ impl Graph {
     });
     let entry_module = Arc::new(Module::new(source, id.to_string(), &ret));
     let graph = Arc::make_mut(&mut ret);
-    let entry_module = Arc::new(Module::new(source, id.to_string(), ret_cloned));
     real_modules_by_id.insert(id, ModOrExt::Mod(entry_module.clone()));
-    graph.entry_module = Some(entry_module);
+    graph.entry_module = entry_module;
     graph.modules_by_id = Arc::new(RwLock::new(real_modules_by_id));
     Ok(ret)
   }
@@ -76,7 +76,7 @@ impl Graph {
     F: FnOnce(Vec<&swc_ecma_ast::ModuleItem>),
   {
     let collect_all_modules_duration = time::Instant::now();
-    let modules = Module::expand_all_modules(self.entry_module.clone().unwrap(), true);
+    let modules = Module::expand_all_modules(self.entry_module.clone(), true);
     println!(
       "collect all modules duration {:?}",
       collect_all_modules_duration.elapsed()
@@ -84,16 +84,21 @@ impl Graph {
 
     codegen(
       modules
-        .par_iter()
+        .iter()
         .flat_map(|s| {
-          s.swc_module.body.par_iter().filter(|m| match m {
-            ModuleItem::Stmt(_) => true,
-            ModuleItem::ModuleDecl(decl) => match decl {
-              &ModuleDecl::Import(_) => false,
-              &ModuleDecl::TsImportEquals(_) => false,
-              _ => true,
-            },
-          })
+          s.swc_module
+            .as_ref()
+            .unwrap()
+            .body
+            .iter()
+            .filter(|m| match m {
+              &ModuleItem::Stmt(_) => true,
+              &ModuleItem::ModuleDecl(decl) => match decl {
+                &ModuleDecl::Import(_) => false,
+                &ModuleDecl::TsImportEquals(_) => false,
+                _ => true,
+              },
+            })
         })
         .collect(),
     );

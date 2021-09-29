@@ -10,6 +10,12 @@ name = "bundle-lodash-es"
 path = "bin/lodash.rs"
 test = false
 
+[[bin]]
+bench = false
+name = "bundle-three-js"
+path = "bin/three.rs"
+test = false
+
 [dependencies.swc_common]
 features = ["tty-emitter", "concurrent"]
 version = "0.13.2"
