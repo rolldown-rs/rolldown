@@ -370,9 +370,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.102"
+version = "0.2.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2a5ac8f984bfcf3a823267e5fde638acc3325f6496633a5da6bb6eb2171e103"
+checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
 
 [[package]]
 name = "lock_api"
@@ -984,9 +984,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
+checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
 
 [[package]]
 name = "snmalloc-rs"
@@ -1163,9 +1163,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_parser"
-version = "0.73.0"
+version = "0.73.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a922c05fdf4393138cdf41f1533bd03f415f19a2ae6784ac1eb6039554a4762f"
+checksum = "1e02141a5283235e4fe3430828f597121dbdca831507bf6c4a897a6118ee0781"
 dependencies = [
  "either",
  "enum_kind",
@@ -1173,7 +1173,7 @@ dependencies = [
  "num-bigint",
  "rustc-hash",
  "serde",
- "smallvec 1.6.1",
+ "smallvec 1.7.0",
  "swc_atoms",
  "swc_common",
  "swc_ecma_ast",
