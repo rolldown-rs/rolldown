@@ -1,3 +1,4 @@
+use log::debug;
 use path_absolutize::*;
 use std::collections::HashMap;
 use std::env;
@@ -38,12 +39,12 @@ impl HookDriver {
     _parent_dir_cache: &RwLock<HashMap<String, String, RandomState>>,
   ) -> Option<String> {
     let id = built_in::resolve_id(source, importer);
-    println!("resolve_id: {:?}", id);
+    debug!("resolve_id: {:?}", id);
     id
   }
 
   pub fn load(&self, id: &str) -> io::Result<String> {
-    println!("load id: {}", id);
+    debug!("load id: {}", id);
     std::fs::read_to_string(id)
   }
 

@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{atomic::Ordering, Arc};
 
 use ahash::RandomState;
+use log::debug;
 use rayon::prelude::*;
 use swc_common::{
   errors::{ColorConfig, Handler},
@@ -144,17 +145,25 @@ impl Module {
   }
 
   pub fn expand_all_modules(&self, _is_entry_module: bool) -> Vec<swc_ecma_ast::ModuleItem> {
-    self
-      .take_swc_module()
-      .body
-      .into_par_iter()
-      .map(|i| Statement::new(i))
-      .flat_map(|statement| {
-        let read_lock = statement.is_included.read();
-        if *read_lock.deref() {
-          return vec![];
-        }
-        std::mem::drop(read_lock);
+    // println!("expand_all_modules start from {:?}", self.id);
+    self.is_included.store(true, Ordering::SeqCst);
+    
+    let module_items = self
+    .take_swc_module()
+    .body
+    .into_par_iter()
+    .map(|i| Statement::new(i))
+    .flat_map(|statement| {
+        // let read_lock = statement.is_included.read();
+        // let is_included = *read_lock.deref();
+        // std::mem::drop(read_lock);
+        // if is_included {
+        //   return vec![];
+        // } else {
+        //   let mut write_lock = statement.is_included.write();
+        //   *write_lock = true;
+        //   std::mem::drop(write_lock);
+        // }
         if let ModuleItem::ModuleDecl(module_decl) = statement.get_node() {
           match module_decl {
             ModuleDecl::Import(import_decl) => {
@@ -163,7 +172,7 @@ impl Module {
                 &import_decl.src.value.to_string(),
                 Some(&self.id),
               ) {
-                if m.is_included.swap(true, Ordering::SeqCst) {
+                if m.is_included.load(Ordering::SeqCst) {
                   return vec![];
                 }
                 return Module::expand_all_modules(&m, false);
@@ -178,7 +187,7 @@ impl Module {
                 if let Ok(ModOrExt::Mod(m)) =
                   Graph::fetch_module(&self.get_graph(), &src.value.to_string(), Some(&self.id))
                 {
-                  if m.is_included.swap(true, Ordering::SeqCst) {
+                  if m.is_included.load(Ordering::SeqCst) {
                     return vec![];
                   }
                   return Module::expand_all_modules(&m, false);
@@ -189,12 +198,11 @@ impl Module {
             _ => {}
           }
         }
-        let mut write_lock = statement.is_included.write();
-        *write_lock = true;
-        std::mem::drop(write_lock);
         vec![statement.take_node()]
       })
-      .collect()
+      .collect();
+      debug!("expand_all_modules from {:?}, is_included {:?}", self.id, self.is_included);
+      module_items
   }
 
   fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {

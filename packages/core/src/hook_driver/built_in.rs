@@ -17,7 +17,8 @@ pub fn resolve_id(
   } else if importer.is_none() {
     id = nodejs::path::resolve(&source);
   } else {
-    if !source.starts_with(".") {
+    let is_normal_import = source.starts_with(".") || source.starts_with("..");
+    if !is_normal_import  {
       // TODO: resolve external module
       // ignore all external module for now
       return None;
