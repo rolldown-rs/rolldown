@@ -47,6 +47,8 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "ast_node"
 version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f93f52ce8fac3d0e6720a92b0576d737c01b1b5db4dd786e962e5925f00bf755"
 dependencies = [
  "darling",
  "pmutil",
@@ -221,6 +223,8 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "enum_kind"
 version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78b940da354ae81ef0926c5eaa428207b8f4f091d3956c891dfbd124162bed99"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -247,6 +251,8 @@ dependencies = [
 [[package]]
 name = "from_variant"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0951635027ca477be98f8774abd6f0345233439d63f307e47101acb40c7cc63d"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -376,6 +382,15 @@ checksum = "62ebf1391f6acad60e5c8b43706dde4582df75c06698ab44511d15016bc2442c"
 dependencies = [
  "owning_ref",
  "scopeguard 0.3.3",
+]
+
+[[package]]
+name = "log"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+dependencies = [
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -863,6 +878,7 @@ version = "0.0.1"
 dependencies = [
  "ahash",
  "anyhow",
+ "log",
  "napi",
  "napi-derive",
  "once_cell",
@@ -1056,6 +1072,8 @@ dependencies = [
 [[package]]
 name = "string_enum"
 version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f584cc881e9e5f1fd6bf827b0444aa94c30d8fe6378cf241071b5f5700b2871f"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1073,6 +1091,8 @@ checksum = "6446ced80d6c486436db5c078dde11a9f73d42b57fb273121e160b84f63d894c"
 [[package]]
 name = "swc_atoms"
 version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "837a3ef86c2817228e733b6f173c821fd76f9eb21a0bc9001a826be48b00b4e7"
 dependencies = [
  "string_cache",
  "string_cache_codegen",
@@ -1080,7 +1100,9 @@ dependencies = [
 
 [[package]]
 name = "swc_common"
-version = "0.13.1"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d20bb644ce8a6cda46df6a91d7ee41461ad9255501e5244333a59c5f2c9be5d"
 dependencies = [
  "ahash",
  "ast_node",
@@ -1106,7 +1128,9 @@ dependencies = [
 
 [[package]]
 name = "swc_ecma_ast"
-version = "0.54.0"
+version = "0.54.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e99b28d8a3f8acb5e53b8e2350c3738bd246b4acc9f2fc6ff8c796138d2efa"
 dependencies = [
  "is-macro",
  "num-bigint",
@@ -1119,6 +1143,8 @@ dependencies = [
 [[package]]
 name = "swc_ecma_codegen"
 version = "0.74.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86671dca4eed5c2cd694d32da60c3defe88837adbdf9a579efdb412e74995c76"
 dependencies = [
  "bitflags",
  "memchr",
@@ -1135,6 +1161,8 @@ dependencies = [
 [[package]]
 name = "swc_ecma_codegen_macros"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdbf826c739281cdb3b3c23883fd1a7586ea1c15b1287530e7123a7fad8f0e25"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1146,6 +1174,8 @@ dependencies = [
 [[package]]
 name = "swc_ecma_parser"
 version = "0.73.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e02141a5283235e4fe3430828f597121dbdca831507bf6c4a897a6118ee0781"
 dependencies = [
  "either",
  "enum_kind",
@@ -1165,6 +1195,8 @@ dependencies = [
 [[package]]
 name = "swc_ecma_visit"
 version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c24a7600061813d7df3248d93ff27cacc1a81f9eeec47701866f3adc9ae2930"
 dependencies = [
  "num-bigint",
  "swc_atoms",
@@ -1176,6 +1208,8 @@ dependencies = [
 [[package]]
 name = "swc_eq_ignore_macros"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c8f200a2eaed938e7c1a685faaa66e6d42fa9e17da5f62572d3cbc335898f5e"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1186,6 +1220,8 @@ dependencies = [
 [[package]]
 name = "swc_macros_common"
 version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ed2e930f5a1a4071fe62c90fd3a296f6030e5d94bfe13993244423caf59a78"
 dependencies = [
  "pmutil",
  "proc-macro2",
@@ -1196,6 +1232,8 @@ dependencies = [
 [[package]]
 name = "swc_visit"
 version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a423caa0b4585118164dbad8f1ad52b592a9a9370b25decc4d84c6b4309132c0"
 dependencies = [
  "either",
  "swc_visit_macros",
@@ -1204,6 +1242,8 @@ dependencies = [
 [[package]]
 name = "swc_visit_macros"
 version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3b2825fee79f10d0166e8e650e79c7a862fb991db275743083f07555d7641f0"
 dependencies = [
  "Inflector",
  "pmutil",
@@ -1270,9 +1310,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tracing"
-version = "0.1.28"
+version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84f96e095c0c82419687c20ddf5cb3eadb61f4e1405923c9dc8e53a1adacbda8"
+checksum = "375a639232caf30edfc78e8d89b2d4c375515393e7af7e16f01cd96917fb2105"
 dependencies = [
  "cfg-if 1.0.0",
  "pin-project-lite",
@@ -1282,9 +1322,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.16"
+version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98863d0dd09fa59a1b79c6750ad80dbda6b75f4e71c437a6a1a8cb91a8bcbd77"
+checksum = "f4f480b8f81512e825f337ad51e94c1eb5d3bbdf2b363dcd01e2b19a9ffe3f8e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1293,9 +1333,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.20"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46125608c26121c81b0c6d693eab5a420e416da7e43c426d2e8f7df8da8a3acf"
+checksum = "1f4ed65637b8390770814083d20756f87bfa2c21bf2f110babdc5438351746e4"
 dependencies = [
  "lazy_static",
 ]

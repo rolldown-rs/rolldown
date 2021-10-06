@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 use std::time;
+use log::{debug};
 
 use ahash::RandomState;
 use once_cell::sync::Lazy;
@@ -95,28 +96,32 @@ impl Graph {
     source: &str,
     importer: Option<&str>,
   ) -> Result<ModOrExt, GraphError> {
-    Ok(
-      this
-        .hook_driver
-        .resolve_id(source, importer, &this.parent_dir_cache)
-        .map(|id| {
-          this.get_module(&id).unwrap_or_else(|| {
-            let source = this.hook_driver.load(&id).unwrap();
-            let module = ModOrExt::Mod(Arc::new(Module::new(source, id.to_string(), this)));
-            this.insert_module(id.clone(), module.clone());
-            module
-          })
-        })
-        .unwrap_or_else(|| {
-          this.get_module(source).unwrap_or_else(|| {
-            let module = ModOrExt::Ext(Arc::new(ExternalModule {
-              name: source.to_owned(),
-            }));
-            this.insert_module(source.to_owned(), module.clone());
-            module
-          })
-        }),
-    )
+    let module = this
+    .hook_driver
+    .resolve_id(source, importer, &this.parent_dir_cache)
+    .map(|id| {
+      this.get_module(&id).unwrap_or_else(|| {
+        let source = this.hook_driver.load(&id).unwrap();
+        let module = ModOrExt::Mod(Arc::new(Module::new(source, id.to_string(), this)));
+        this.insert_module(id.clone(), module.clone());
+        module
+      })
+    })
+    .unwrap_or_else(|| {
+      this.get_module(source).unwrap_or_else(|| {
+        let module = ModOrExt::Ext(Arc::new(ExternalModule {
+          name: source.to_owned(),
+        }));
+        this.insert_module(source.to_owned(), module.clone());
+        module
+      })
+    });
+    if let ModOrExt::Mod(m) = &module {
+      log::
+      debug!("fetch module {:?}", m.as_ref().id);
+    }
+
+    Ok(module)
   }
 }
 

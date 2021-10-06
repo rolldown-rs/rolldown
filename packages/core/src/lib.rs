@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 
+use log;
 mod ast;
 mod bundle;
 mod external_module;
@@ -8,6 +9,7 @@ mod hook_driver;
 mod module;
 mod statement;
 mod types;
+mod utils;
 
 pub use bundle::*;
 pub use graph::*;
