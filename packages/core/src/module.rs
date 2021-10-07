@@ -13,9 +13,9 @@ use swc_common::{
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
-use crate::{ast, graph};
 use crate::graph::{Graph, ModOrExt};
 use crate::statement::Statement;
+use crate::{ast, graph};
 
 #[derive(Clone)]
 pub struct Module {
@@ -148,22 +148,16 @@ impl Module {
     // name => module_id
     let mut definers = HashMap::new();
     // conflict names
-		let mut conflicts = HashSet::new();
-    statements
-      .iter()
-      .for_each(|stmt| {
-        stmt
-          .defines
-          .iter()
-          .for_each(|name| {
-            if definers.contains_key(name) {
-              conflicts.insert(name.clone());
-            } else {
-              definers.insert(name.clone(), stmt.module_id.clone());
-            }
-          });
+    let mut conflicts = HashSet::new();
+    statements.iter().for_each(|stmt| {
+      stmt.defines.iter().for_each(|name| {
+        if definers.contains_key(name) {
+          conflicts.insert(name.clone());
+        } else {
+          definers.insert(name.clone(), stmt.module_id.clone());
+        }
       });
-
+    });
   }
 
   pub fn expand_all_modules(&self, _is_entry_module: bool) -> Vec<swc_ecma_ast::ModuleItem> {
@@ -181,8 +175,6 @@ impl Module {
     let module_items = statements
       .into_par_iter()
       .flat_map(|statement| {
-        
-
         // let read_lock = statement.is_included.read();
         // let is_included = *read_lock.deref();
         // std::mem::drop(read_lock);
@@ -221,16 +213,13 @@ impl Module {
                   }
                   return Module::expand_all_modules(&m, false);
                 };
+              } else {
+                // skip `export { foo, bar, baz }`
+                return vec![];
               }
-              return vec![];
             }
             _ => {}
           }
-        }
-
-        // skip `export { foo, bar, baz }`
-        if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_)) = statement.get_node() {
-          return  vec![];
         }
 
         let module_item = ast::helper::fold_export_decl_to_decl(statement.take_node());
