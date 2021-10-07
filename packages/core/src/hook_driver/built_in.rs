@@ -1,6 +1,4 @@
-use std::{
-  path::{Path},
-};
+use std::path::Path;
 
 use crate::utils::nodejs;
 pub fn resolve_id(
@@ -8,8 +6,6 @@ pub fn resolve_id(
   importer: Option<&str>,
   // _parent_dir_cache: &RwLock<HashMap<String, String, RandomState>>,
 ) -> Option<String> {
-  
-
   let source = Path::new(source).to_path_buf();
   let mut id;
   if source.is_absolute() {
@@ -18,7 +14,7 @@ pub fn resolve_id(
     id = nodejs::path::resolve(&source);
   } else {
     let is_normal_import = source.starts_with(".") || source.starts_with("..");
-    if !is_normal_import  {
+    if !is_normal_import {
       // TODO: resolve external module
       // ignore all external module for now
       return None;
@@ -61,7 +57,6 @@ mod tests {
     let right = "/foo/bar/index.js";
     assert_eq!(left, Some(right.to_owned()));
   }
-
 
   #[test]
   fn relative_contains_dot() {

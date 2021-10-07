@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
 use std::sync::{atomic::Ordering, Arc};
@@ -13,7 +13,7 @@ use swc_common::{
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
-use crate::graph;
+use crate::{ast, graph};
 use crate::graph::{Graph, ModOrExt};
 use crate::statement::Statement;
 
@@ -144,16 +144,45 @@ impl Module {
       .collect()
   }
 
+  pub fn deconflict(&self, statements: &Vec<Statement>) {
+    // name => module_id
+    let mut definers = HashMap::new();
+    // conflict names
+		let mut conflicts = HashSet::new();
+    statements
+      .iter()
+      .for_each(|stmt| {
+        stmt
+          .defines
+          .iter()
+          .for_each(|name| {
+            if definers.contains_key(name) {
+              conflicts.insert(name.clone());
+            } else {
+              definers.insert(name.clone(), stmt.module_id.clone());
+            }
+          });
+      });
+
+  }
+
   pub fn expand_all_modules(&self, _is_entry_module: bool) -> Vec<swc_ecma_ast::ModuleItem> {
     // println!("expand_all_modules start from {:?}", self.id);
     self.is_included.store(true, Ordering::SeqCst);
-    
-    let module_items = self
-    .take_swc_module()
-    .body
-    .into_par_iter()
-    .map(|i| Statement::new(i))
-    .flat_map(|statement| {
+    let statements = self
+      .take_swc_module()
+      .body
+      .into_par_iter()
+      .map(|i| Statement::new(i, self.id.clone()))
+      .collect::<Vec<Statement>>();
+
+    self.deconflict(&statements);
+
+    let module_items = statements
+      .into_par_iter()
+      .flat_map(|statement| {
+        
+
         // let read_lock = statement.is_included.read();
         // let is_included = *read_lock.deref();
         // std::mem::drop(read_lock);
@@ -198,11 +227,22 @@ impl Module {
             _ => {}
           }
         }
-        vec![statement.take_node()]
+
+        // skip `export { foo, bar, baz }`
+        if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_)) = statement.get_node() {
+          return  vec![];
+        }
+
+        let module_item = ast::helper::fold_export_decl_to_decl(statement.take_node());
+
+        vec![module_item]
       })
       .collect();
-      debug!("expand_all_modules from {:?}, is_included {:?}", self.id, self.is_included);
-      module_items
+    debug!(
+      "expand_all_modules from {:?}, is_included {:?}",
+      self.id, self.is_included
+    );
+    module_items
   }
 
   fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
@@ -8,6 +8,32 @@ use crate::ast::scope::Scope;
 
 pub struct StatementOptions {}
 
+fn collect_defines(node: &ModuleItem) -> HashSet<String> {
+  let mut defines = HashSet::new();
+  if let ModuleItem::Stmt(Stmt::Decl(decl)) = node {
+    match decl {
+      Decl::Class(node) => {
+        defines.insert(node.ident.sym.to_string());
+      }
+      Decl::Fn(node) => {
+        defines.insert(node.ident.sym.to_string());
+      }
+      Decl::Var(node) => {
+        node.decls.iter().for_each(|decl| {
+          match &decl.name {
+            Pat::Ident(ident) => {
+              defines.insert(ident.id.sym.to_string());
+            }
+            _ => {}
+          };
+        });
+      }
+      _ => {}
+    }
+  };
+  defines
+}
+
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Statement {
@@ -15,13 +41,15 @@ pub struct Statement {
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
   pub is_included: RwLock<bool>,
+  pub defines: HashSet<String>,
+  pub module_id: String,
 }
 
 unsafe impl Send for Statement {}
 unsafe impl Sync for Statement {}
 
 impl Statement {
-  pub fn new(node: ModuleItem) -> Self {
+  pub fn new(node: ModuleItem, module_id: String) -> Self {
     let is_import_declaration = matches!(&node, ModuleItem::ModuleDecl(ModuleDecl::Import(_)));
     let is_export_declaration = if let ModuleItem::ModuleDecl(module_decl) = &node {
       matches!(
@@ -35,7 +63,10 @@ impl Statement {
     } else {
       false
     };
+    let defines = collect_defines(&node);
     Statement {
+      defines,
+      module_id,
       node: Box::into_raw(Box::new(node)),
       is_import_declaration,
       is_export_declaration,
