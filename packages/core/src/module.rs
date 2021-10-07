@@ -117,8 +117,8 @@ impl Module {
               swc_ecma_ast::ImportSpecifier::Named(n) => {
                 local_name = n.local.sym.to_string();
                 name = n.imported.as_ref().map_or(
-                  local_name.clone(), // `import { foo } from './foo'` doesn't has local name
-                  |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has local name '_foo'
+                  local_name.clone(), // `import { foo } from './foo'` doesn't has `imported` name, so we think `local_name` as `imported` name
+                  |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has `imported` name 'foo'
                 );
               }
               // import * as foo from './foo'

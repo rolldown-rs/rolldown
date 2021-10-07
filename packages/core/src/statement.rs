@@ -81,6 +81,10 @@ impl Statement {
   pub fn take_node(&self) -> ModuleItem {
     unsafe { *Box::from_raw(self.node) }
   }
+
+  fn replace_identifiers() {
+
+  }
 }
 
 #[non_exhaustive]
