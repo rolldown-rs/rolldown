@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
+use std::sync::RwLock;
 use std::sync::{atomic::Ordering, Arc};
 
 use ahash::RandomState;
@@ -21,11 +22,11 @@ use crate::{ast, graph};
 pub struct Module {
   pub source: String,
   pub graph: *const Graph,
-  pub(crate) swc_module: Option<*mut swc_ecma_ast::Module>,
+  // pub(crate) swc_module: Option<*mut swc_ecma_ast::Module>,
+  pub statements: Vec<Arc<RwLock<Statement>>>,
   pub id: String,
   pub imports: HashMap<String, ImportDesc, RandomState>,
   pub exports: HashMap<String, ExportDesc, RandomState>,
-  is_included: Arc<AtomicBool>,
 }
 
 unsafe impl Sync for Module {}
@@ -37,27 +38,31 @@ impl Module {
       source: "".to_owned(),
       id: "".to_owned(),
       graph: std::ptr::null(),
-      swc_module: None,
+      statements: vec![],
       imports: HashMap::default(),
       exports: HashMap::default(),
-      is_included: Arc::new(AtomicBool::new(false)),
     }
   }
 
   pub fn new(source: String, id: String, graph: &Arc<Graph>) -> Self {
+    let ast = Module::get_ast(source.clone(), id.clone());
+    let statements = ast
+      .body
+      .into_iter()
+      .map(|node| Statement::new(node, id.clone()))
+      .map(RwLock::new)
+      .map(Arc::new)
+      .collect();
+
     let module = Module {
-      swc_module: Some(Box::into_raw(Box::new(Module::get_ast(
-        source.clone(),
-        id.clone(),
-      )))),
+      statements,
       source,
       id: id.clone(),
       graph: Arc::as_ptr(&graph),
-      is_included: Arc::new(AtomicBool::new(false)),
       imports: HashMap::default(),
       exports: HashMap::default(),
     };
-    // module.imports = Module::analyse(&module.statements);
+    module.analyse();
     module
   }
 
@@ -94,54 +99,54 @@ impl Module {
       .expect("failed to parser module")
   }
 
-  fn analyse(statements: &[Arc<Statement>]) -> HashMap<String, ImportDesc, RandomState> {
+  fn analyse(&self) {
     // analyse imports and exports
     // @TODO
     // Handle duplicated
-    statements
-      .iter()
-      .filter(|s| s.is_import_declaration)
-      .filter_map(|s| {
-        if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = s.get_node() {
-          Some(import_decl.specifiers.iter().filter_map(move |specifier| {
-            let local_name;
-            let name;
-            match specifier {
-              // import foo from './foo'
-              swc_ecma_ast::ImportSpecifier::Default(n) => {
-                local_name = n.local.sym.to_string();
-                name = "default".to_owned();
-              }
-              // import { foo } from './foo'
-              // import { foo as foo2 } from './foo'
-              swc_ecma_ast::ImportSpecifier::Named(n) => {
-                local_name = n.local.sym.to_string();
-                name = n.imported.as_ref().map_or(
-                  local_name.clone(), // `import { foo } from './foo'` doesn't has `imported` name, so we think `local_name` as `imported` name
-                  |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has `imported` name 'foo'
-                );
-              }
-              // import * as foo from './foo'
-              swc_ecma_ast::ImportSpecifier::Namespace(n) => {
-                local_name = n.local.sym.to_string();
-                name = "*".to_owned()
-              }
-            }
-            Some((
-              local_name.clone(),
-              ImportDesc {
-                source: import_decl.src.value.to_string(),
-                name,
-                local_name,
-              },
-            ))
-          }))
-        } else {
-          None
-        }
-      })
-      .flatten()
-      .collect()
+    // let collects = self.statements
+    //   .iter()
+    //   .filter(|s| s.is_import_declaration)
+    //   .filter_map(|s| {
+    //     if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = s.node.as_ref() {
+    //       Some(import_decl.specifiers.iter().filter_map(move |specifier| {
+    //         let local_name;
+    //         let name;
+    //         match specifier {
+    //           // import foo from './foo'
+    //           swc_ecma_ast::ImportSpecifier::Default(n) => {
+    //             local_name = n.local.sym.to_string();
+    //             name = "default".to_owned();
+    //           }
+    //           // import { foo } from './foo'
+    //           // import { foo as foo2 } from './foo'
+    //           swc_ecma_ast::ImportSpecifier::Named(n) => {
+    //             local_name = n.local.sym.to_string();
+    //             name = n.imported.as_ref().map_or(
+    //               local_name.clone(), // `import { foo } from './foo'` doesn't has `imported` name, so we think `local_name` as `imported` name
+    //               |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has `imported` name 'foo'
+    //             );
+    //           }
+    //           // import * as foo from './foo'
+    //           swc_ecma_ast::ImportSpecifier::Namespace(n) => {
+    //             local_name = n.local.sym.to_string();
+    //             name = "*".to_owned()
+    //           }
+    //         }
+    //         Some((
+    //           local_name.clone(),
+    //           ImportDesc {
+    //             source: import_decl.src.value.to_string(),
+    //             name,
+    //             local_name,
+    //           },
+    //         ))
+    //       }))
+    //     } else {
+    //       None
+    //     }
+    //   })
+    //   .flatten()
+    //   .collect();
   }
 
   pub fn deconflict(&self, statements: &Vec<Statement>) {
@@ -160,20 +165,23 @@ impl Module {
     });
   }
 
-  pub fn expand_all_modules(&self, _is_entry_module: bool) -> Vec<swc_ecma_ast::ModuleItem> {
+  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<RwLock<Statement>>> {
     // println!("expand_all_modules start from {:?}", self.id);
-    self.is_included.store(true, Ordering::SeqCst);
-    let statements = self
-      .take_swc_module()
-      .body
-      .into_par_iter()
-      .map(|i| Statement::new(i, self.id.clone()))
-      .collect::<Vec<Statement>>();
+    // self.is_included.store(true, Ordering::SeqCst);
+    // let statements = self
+    //   .take_swc_module()
+    //   .body
+    //   .into_par_iter()
+    //   .map(|i| Statement::new(i, self.id.clone()))
+    //   .collect::<Vec<Statement>>();
 
-    self.deconflict(&statements);
+    // self.deconflict(&statements);
 
-    let module_items = statements
-      .into_par_iter()
+    let module_items = self
+      .statements
+      .iter()
+      // FIXME: will cause repated bundle
+      // .par_iter()
       .flat_map(|statement| {
         // let read_lock = statement.is_included.read();
         // let is_included = *read_lock.deref();
@@ -185,7 +193,7 @@ impl Module {
         //   *write_lock = true;
         //   std::mem::drop(write_lock);
         // }
-        if let ModuleItem::ModuleDecl(module_decl) = statement.get_node() {
+        if let ModuleItem::ModuleDecl(module_decl) = &statement.read().unwrap().node {
           match module_decl {
             ModuleDecl::Import(import_decl) => {
               if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
@@ -193,10 +201,7 @@ impl Module {
                 &import_decl.src.value.to_string(),
                 Some(&self.id),
               ) {
-                if m.is_included.load(Ordering::SeqCst) {
-                  return vec![];
-                }
-                return Module::expand_all_modules(&m, false);
+                return Module::expand_all_statements(&m, false);
               };
               return vec![];
             }
@@ -208,11 +213,10 @@ impl Module {
                 if let Ok(ModOrExt::Mod(m)) =
                   Graph::fetch_module(&self.get_graph(), &src.value.to_string(), Some(&self.id))
                 {
-                  if m.is_included.load(Ordering::SeqCst) {
-                    return vec![];
-                  }
-                  return Module::expand_all_modules(&m, false);
-                };
+                  return Module::expand_all_statements(&m, false);
+                } else {
+                  return vec![];
+                }
               } else {
                 // skip `export { foo, bar, baz }`
                 return vec![];
@@ -222,25 +226,21 @@ impl Module {
           }
         }
 
-        let module_item = ast::helper::fold_export_decl_to_decl(statement.take_node());
-
-        vec![module_item]
+        ast::helper::fold_export_decl_to_decl(&mut statement.write().unwrap().node);
+        Statement::expand(statement)
       })
       .collect();
-    debug!(
-      "expand_all_modules from {:?}, is_included {:?}",
-      self.id, self.is_included
-    );
+    debug!("expand_all_modules from {:?}", self.id);
     module_items
   }
 
-  fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {
-    unsafe { Box::from_raw(self.swc_module.unwrap()) }
-  }
+  // fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {
+  //   unsafe { Box::from_raw(self.swc_module.unwrap()) }
+  // }
 
-  fn get_swc_module(&self) -> &mut swc_ecma_ast::Module {
-    unsafe { Box::leak(Box::from_raw(self.swc_module.unwrap())) }
-  }
+  // fn get_swc_module(&self) -> &mut swc_ecma_ast::Module {
+  //   unsafe { Box::leak(Box::from_raw(self.swc_module.unwrap())) }
+  // }
 
   fn get_graph(&self) -> Arc<Graph> {
     unsafe {

@@ -1,15 +1,6 @@
 use log::debug;
-use path_absolutize::*;
-use std::collections::HashMap;
-use std::env;
-use std::io;
-use std::mem;
-use std::path::PathBuf;
-use std::path::{Path, MAIN_SEPARATOR};
 
-use ahash::RandomState;
-use once_cell::sync::Lazy;
-use swc_common::sync::RwLock;
+use std::io;
 mod built_in;
 
 #[derive(Clone)]
@@ -36,7 +27,7 @@ impl HookDriver {
     &self,
     source: &str,
     importer: Option<&str>,
-    _parent_dir_cache: &RwLock<HashMap<String, String, RandomState>>,
+    // _parent_dir_cache: &RwLock<HashMap<String, String, RandomState>>,
   ) -> Option<String> {
     let id = built_in::resolve_id(source, importer);
     debug!("resolve_id: {:?}", id);

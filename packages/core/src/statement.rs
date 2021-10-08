@@ -1,9 +1,8 @@
 use std::{
   collections::HashSet,
-  sync::{Arc, Weak},
+  sync::{Arc, RwLock},
 };
 
-use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
 use swc_ecma_visit::{swc_ecma_ast::FnExpr, Node, Visit, VisitWith};
 
@@ -40,10 +39,10 @@ fn collect_defines(node: &ModuleItem) -> HashSet<String> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Statement {
-  node: *mut ModuleItem,
+  pub node: ModuleItem,
   pub is_import_declaration: bool,
   pub is_export_declaration: bool,
-  pub is_included: RwLock<bool>,
+  pub is_included: bool,
   pub defines: HashSet<String>,
   pub module_id: String,
   pub scope: Arc<Scope>,
@@ -72,13 +71,13 @@ impl Statement {
     let s = Statement {
       defines,
       module_id,
-      node: Box::into_raw(Box::new(node)),
+      node,
       is_import_declaration,
       is_export_declaration,
-      is_included: RwLock::new(false),
+      is_included: false,
       scope,
     };
-    s.analyse();
+    // s.analyse();
     s
   }
 
@@ -88,16 +87,26 @@ impl Statement {
       new_scope: None,
       is_in_fn_context: false,
     };
-    self.get_node().visit_children_with(&mut statement_analyser);
+    self.node.visit_children_with(&mut statement_analyser);
   }
 
-  pub fn get_node(&self) -> &ModuleItem {
-    unsafe { Box::leak(Box::from_raw(self.node)) }
+  pub fn expand(this: &Arc<RwLock<Self>>) -> Vec<Arc<RwLock<Self>>> {
+    let is_included_ref = &mut this.write().unwrap().is_included;
+    if *is_included_ref {
+      vec![]
+    } else {
+      *is_included_ref = true;
+      vec![this.clone()]
+    }
   }
 
-  pub fn take_node(&self) -> ModuleItem {
-    unsafe { *Box::from_raw(self.node) }
-  }
+  // pub fn get_node(&self) -> &ModuleItem {
+  //   unsafe { Box::leak(Box::from_raw(self.node)) }
+  // }
+
+  // pub fn take_node(&self) -> ModuleItem {
+  //   unsafe { *Box::from_raw(self.node) }
+  // }
 
   fn replace_identifiers() {}
 }
@@ -130,7 +139,9 @@ impl StatementAnalyser {
 
   pub fn leave(&mut self) {
     if let Some(new_scope) = &self.new_scope {
-      self.scope = new_scope.parent.upgrade().unwrap().clone()
+      if let Some(parent) = new_scope.parent.upgrade() {
+        self.scope = parent.clone()
+      }
     }
   }
 }

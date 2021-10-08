@@ -1,9 +1,9 @@
+use rayon::prelude::*;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::{mem, time};
-
 use swc_common::{BytePos, LineCol, DUMMY_SP};
-use swc_ecma_codegen::text_writer::JsWriter;
+use swc_ecma_codegen::{text_writer::JsWriter, Node};
 use swc_ecma_parser::JscTarget;
 use thiserror::Error;
 
@@ -40,7 +40,7 @@ pub struct Bundle {
 impl Bundle {
   pub fn new(entry: &str) -> Result<Self, BundleError> {
     Ok(Self {
-      graph: graph::Graph::build(entry)?,
+      graph: graph::Graph::new(entry)?,
     })
   }
 
@@ -49,29 +49,35 @@ impl Bundle {
     w: W,
     sm: Option<&mut Vec<(BytePos, LineCol)>>,
   ) -> Result<(), BundleError> {
-    self.graph.get_swc_module_items(|mut items| {
-      let emitter_time = time::Instant::now();
-      let mut emitter = swc_ecma_codegen::Emitter {
-        cfg: swc_ecma_codegen::Config { minify: false },
-        cm: graph::SOURCE_MAP.clone(),
-        comments: None,
-        wr: Box::new(JsWriter::with_target(
-          graph::SOURCE_MAP.clone(),
-          "\n",
-          w,
-          sm,
-          JscTarget::latest(),
-        )),
-      };
-      let mut dest_module = swc_ecma_ast::Module {
-        shebang: None,
-        body: vec![],
-        span: DUMMY_SP,
-      };
-      mem::swap(&mut dest_module.body, &mut items);
-      emitter.emit_module(&dest_module).unwrap();
-      // println!("Emitter time {:?}", emitter_time.elapsed());
+    let statments = self.graph.build();
+    let emitter_time = time::Instant::now();
+    let mut emitter = swc_ecma_codegen::Emitter {
+      cfg: swc_ecma_codegen::Config { minify: false },
+      cm: graph::SOURCE_MAP.clone(),
+      comments: None,
+      wr: Box::new(JsWriter::with_target(
+        graph::SOURCE_MAP.clone(),
+        "\n",
+        w,
+        sm,
+        JscTarget::latest(),
+      )),
+    };
+    statments.iter().for_each(|stmt| {
+      stmt.read().unwrap().node.emit_with(&mut emitter);
     });
+    // println!("Emitter time {:?}", emitter_time.elapsed());
+
+    // self.graph.get_swc_module_items(|mut items| {
+
+    //   let mut dest_module = swc_ecma_ast::Module {
+    //     shebang: None,
+    //     body: vec![],
+    //     span: DUMMY_SP,
+    //   };
+    //   mem::swap(&mut dest_module.body, &mut items);
+    //   emitter.emit_module(&dest_module).unwrap();
+    // });
     Ok(())
   }
 }
