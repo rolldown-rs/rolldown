@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+  collections::HashSet,
+  sync::{Arc, Weak},
+};
 
 use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
@@ -43,6 +46,7 @@ pub struct Statement {
   pub is_included: RwLock<bool>,
   pub defines: HashSet<String>,
   pub module_id: String,
+  pub scope: Arc<Scope>,
 }
 
 unsafe impl Send for Statement {}
@@ -64,14 +68,27 @@ impl Statement {
       false
     };
     let defines = collect_defines(&node);
-    Statement {
+    let scope = Arc::new(Scope::default());
+    let s = Statement {
       defines,
       module_id,
       node: Box::into_raw(Box::new(node)),
       is_import_declaration,
       is_export_declaration,
       is_included: RwLock::new(false),
-    }
+      scope,
+    };
+    s.analyse();
+    s
+  }
+
+  fn analyse(&self) {
+    let mut statement_analyser = StatementAnalyser {
+      scope: self.scope.clone(),
+      new_scope: None,
+      is_in_fn_context: false,
+    };
+    self.get_node().visit_children_with(&mut statement_analyser);
   }
 
   pub fn get_node(&self) -> &ModuleItem {
@@ -82,15 +99,14 @@ impl Statement {
     unsafe { *Box::from_raw(self.node) }
   }
 
-  fn replace_identifiers() {
-
-  }
+  fn replace_identifiers() {}
 }
 
 #[non_exhaustive]
 pub struct StatementAnalyser {
   pub scope: Arc<Scope>,
   pub new_scope: Option<Arc<Scope>>,
+  pub is_in_fn_context: bool,
 }
 
 impl StatementAnalyser {
@@ -98,6 +114,7 @@ impl StatementAnalyser {
     StatementAnalyser {
       scope: root_scope,
       new_scope: None,
+      is_in_fn_context: false,
     }
   }
 
@@ -113,27 +130,44 @@ impl StatementAnalyser {
 
   pub fn leave(&mut self) {
     if let Some(new_scope) = &self.new_scope {
-      self.scope = new_scope.parent.as_ref().unwrap().clone()
+      self.scope = new_scope.parent.upgrade().unwrap().clone()
     }
+  }
+}
+
+fn map_pat_to_string(pat: &Pat) -> Option<String> {
+  match pat {
+    Pat::Ident(ident) => Some(ident.id.sym.to_string()),
+    _ => None,
   }
 }
 
 impl Visit for StatementAnalyser {
   fn visit_fn_expr(&mut self, node: &FnExpr, _parent: &dyn Node) {
     self.enter();
-    let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
+    let params = node
+      .function
+      .params
+      .iter()
+      .map(|p| map_pat_to_string(&p.pat))
+      .flatten()
+      .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Some(self.scope.clone()),
-      Some(params),
+      Arc::downgrade(&self.scope),
+      params,
       false,
     )));
-    // if let Some(ident) = node.ident {
-    //   // TODO:
-    //   // named function expressions - the name is considered
-    //   // part of the function's scope
-    //   new_scope.add_declaration(ident.sym.to_string(), declaration)
-    // }
+    if let Some(ident) = &node.ident {
+      // named function expressions - the name is considered
+      // part of the function's scope
+      self
+        .new_scope
+        .as_ref()
+        .unwrap()
+        .add_declaration(&ident.sym.to_string(), false)
+    }
     self.before_fold_children();
+    self.is_in_fn_context = true;
     node.visit_children_with(self);
     self.leave();
   }
@@ -142,37 +176,58 @@ impl Visit for StatementAnalyser {
     self.enter();
     self
       .scope
-      .add_declaration(&node.ident.sym.to_string(), Decl::Fn(node.clone()));
-    let params = node.function.params.iter().map(|p| p.pat.clone()).collect();
+      .add_declaration(&node.ident.sym.to_string(), false);
+
+    let params = node
+      .function
+      .params
+      .iter()
+      .map(|p| map_pat_to_string(&p.pat))
+      .flatten()
+      .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Some(self.scope.clone()),
-      Some(params),
+      Arc::downgrade(&self.scope),
+      params,
       false,
     )));
     self.before_fold_children();
+    self.is_in_fn_context = true;
     node.visit_children_with(self);
     self.leave();
   }
 
   fn visit_arrow_expr(&mut self, node: &ArrowExpr, _parent: &dyn Node) {
     self.enter();
+    let params = node
+      .params
+      .iter()
+      .map(|p| map_pat_to_string(p))
+      .flatten()
+      .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Some(self.scope.clone()),
-      Some(node.params.clone()),
+      Arc::downgrade(&self.scope),
+      params,
       false,
     )));
     self.before_fold_children();
+    self.is_in_fn_context = true;
     node.visit_children_with(self);
     self.leave();
   }
 
   fn visit_block_stmt(&mut self, node: &BlockStmt, _parent: &dyn Node) {
-    // enter ---
     self.enter();
-
-    // TODO: should check whether this block is belong to function
-    self.new_scope = Some(Arc::new(Scope::new(Some(self.scope.clone()), None, true)));
-
+    // check whether this block is belong to function
+    // if yes. we don't need gennerate anothor scope for block stmt
+    if self.is_in_fn_context {
+      self.is_in_fn_context = false
+    } else {
+      self.new_scope = Some(Arc::new(Scope::new(
+        Arc::downgrade(&self.scope),
+        vec![],
+        true,
+      )));
+    }
     self.before_fold_children();
     node.visit_children_with(self);
     self.leave();
@@ -181,11 +236,12 @@ impl Visit for StatementAnalyser {
   fn visit_catch_clause(&mut self, node: &CatchClause, _parent: &dyn Node) {
     // enter ---
     self.enter();
-    let params: Vec<Pat> = node.param.as_ref().map_or(vec![], |p| vec![p.clone()]);
+    // let params: Vec<String> = node.param.as_ref().map_or(vec![], |p| map_pat_to_string);
+    let params: Vec<String> = vec![];
     self.new_scope = Some(Arc::new(Scope::new(
-      Some(self.scope.clone()),
-      Some(params),
-      false,
+      Arc::downgrade(&self.scope),
+      params,
+      true,
     )));
     self.before_fold_children();
     node.visit_children_with(self);
@@ -197,7 +253,8 @@ impl Visit for StatementAnalyser {
     node.decls.iter().for_each(|declarator| {
       if let Pat::Ident(binding_ident) = &declarator.name {
         let name = binding_ident.id.sym.to_string();
-        self.scope.add_declaration(&name, Decl::Var(node.clone()));
+        let is_block_declaration = matches!(node.kind, VarDeclKind::Let | VarDeclKind::Const);
+        self.scope.add_declaration(&name, is_block_declaration);
       };
     });
     self.before_fold_children();
@@ -210,7 +267,7 @@ impl Visit for StatementAnalyser {
     self.enter();
     self
       .scope
-      .add_declaration(&node.ident.sym.to_string(), Decl::Class(node.clone()));
+      .add_declaration(&node.ident.sym.to_string(), false);
     self.before_fold_children();
     node.visit_children_with(self);
     self.leave();
