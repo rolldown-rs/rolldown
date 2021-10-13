@@ -77,7 +77,7 @@ impl Statement {
       is_included: false,
       scope,
     };
-    // s.analyse();
+    s.analyse();
     s
   }
 
@@ -115,6 +115,7 @@ impl Statement {
 pub struct StatementAnalyser {
   pub scope: Arc<Scope>,
   pub new_scope: Option<Arc<Scope>>,
+  // we need is_in_fn_context to determined the block is belong to a function or just a independent block. 
   pub is_in_fn_context: bool,
 }
 
@@ -139,7 +140,7 @@ impl StatementAnalyser {
 
   pub fn leave(&mut self) {
     if let Some(new_scope) = &self.new_scope {
-      if let Some(parent) = new_scope.parent.upgrade() {
+      if let Some(parent) = new_scope.parent.as_ref() {
         self.scope = parent.clone()
       }
     }
@@ -164,7 +165,7 @@ impl Visit for StatementAnalyser {
       .flatten()
       .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Arc::downgrade(&self.scope),
+      Some(self.scope.clone()),
       params,
       false,
     )));
@@ -197,7 +198,7 @@ impl Visit for StatementAnalyser {
       .flatten()
       .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Arc::downgrade(&self.scope),
+      Some(self.scope.clone()),
       params,
       false,
     )));
@@ -216,7 +217,50 @@ impl Visit for StatementAnalyser {
       .flatten()
       .collect();
     self.new_scope = Some(Arc::new(Scope::new(
-      Arc::downgrade(&self.scope),
+      Some(self.scope.clone()),
+      params,
+      false,
+    )));
+    self.before_fold_children();
+    self.is_in_fn_context = true;
+    node.visit_children_with(self);
+    self.leave();
+  }
+  fn visit_class_method(&mut self, node: &ClassMethod, _parent: &dyn Node) {
+    self.enter();
+    let params = node
+      .function
+      .params
+      .iter()
+      .map(|p| map_pat_to_string(&p.pat))
+      .flatten()
+      .collect();
+    self.new_scope = Some(Arc::new(Scope::new(
+      Some(self.scope.clone()),
+      params,
+      false,
+    )));
+    self.before_fold_children();
+    self.is_in_fn_context = true;
+    node.visit_children_with(self);
+    self.leave();
+  }
+
+  fn visit_method_prop(
+    &mut self,
+    node: &MethodProp, 
+    _parent: &dyn Node
+  ) {
+    self.enter();
+    let params = node
+      .function
+      .params
+      .iter()
+      .map(|p| map_pat_to_string(&p.pat))
+      .flatten()
+      .collect();
+    self.new_scope = Some(Arc::new(Scope::new(
+      Some(self.scope.clone()),
       params,
       false,
     )));
@@ -234,7 +278,7 @@ impl Visit for StatementAnalyser {
       self.is_in_fn_context = false
     } else {
       self.new_scope = Some(Arc::new(Scope::new(
-        Arc::downgrade(&self.scope),
+        Some(self.scope.clone()),
         vec![],
         true,
       )));
@@ -250,7 +294,7 @@ impl Visit for StatementAnalyser {
     // let params: Vec<String> = node.param.as_ref().map_or(vec![], |p| map_pat_to_string);
     let params: Vec<String> = vec![];
     self.new_scope = Some(Arc::new(Scope::new(
-      Arc::downgrade(&self.scope),
+      Some(self.scope.clone()),
       params,
       true,
     )));

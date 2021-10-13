@@ -27,6 +27,7 @@ pub struct Module {
   pub id: String,
   pub imports: HashMap<String, ImportDesc, RandomState>,
   pub exports: HashMap<String, ExportDesc, RandomState>,
+  pub defines: HashSet<String>,
 }
 
 unsafe impl Sync for Module {}
@@ -41,6 +42,7 @@ impl Module {
       statements: vec![],
       imports: HashMap::default(),
       exports: HashMap::default(),
+      defines: HashSet::default(),
     }
   }
 
@@ -52,8 +54,23 @@ impl Module {
       .map(|node| Statement::new(node, id.clone()))
       .map(RwLock::new)
       .map(Arc::new)
-      .collect();
+      .collect::<Vec<Arc<RwLock<Statement>>>>();
 
+    let defines = statements
+      .iter()
+      .map(|stmt| {
+        stmt
+          .read()
+          .unwrap()
+          .scope
+          .defines
+          .read()
+          .iter()
+          .map(|s| s.clone())
+          .collect()
+      })
+      .collect();
+    debug!("top defines {:?} id: {:?}", defines, id);
     let module = Module {
       statements,
       source,
@@ -61,6 +78,7 @@ impl Module {
       graph: Arc::as_ptr(&graph),
       imports: HashMap::default(),
       exports: HashMap::default(),
+      defines,
     };
     module.analyse();
     module

@@ -6,8 +6,9 @@ use swc_ecma_ast::{Decl, Pat, VarDeclKind};
 
 #[derive(Debug)]
 pub struct Scope {
-  pub parent: Weak<Scope>,
+  pub parent: Option<Arc<Scope>>,
   pub depth: u32,
+  // FIXME: collected defines has empty string "" 
   pub defines: RwLock<HashSet<String>>,
   pub is_block_scope: bool,
 }
@@ -15,7 +16,7 @@ pub struct Scope {
 impl Default for Scope {
   fn default() -> Self {
     Scope {
-      parent: Weak::default(),
+      parent: None,
       depth: 0,
       defines: RwLock::new(HashSet::default()),
       is_block_scope: false,
@@ -24,12 +25,12 @@ impl Default for Scope {
 }
 
 impl Scope {
-  pub fn new(parent: Weak<Scope>, params: Vec<String>, block: bool) -> Scope {
+  pub fn new(parent: Option<Arc<Scope>>, params: Vec<String>, block: bool) -> Scope {
     let mut defines = HashSet::new();
     params.into_iter().for_each(|p| {
       defines.insert(p);
     });
-    let depth = parent.upgrade().map_or(0, |p| p.depth + 1);
+    let depth = parent.as_ref().map_or(0, |p| p.depth + 1);
     Scope {
       depth,
       parent,
@@ -46,10 +47,11 @@ impl Scope {
     // };
 
     if !is_block_declaration && self.is_block_scope {
+      
       self
         .parent
-        .upgrade()
-        .unwrap()
+        .as_ref()
+        .expect(&format!("parent not found for name {:?}", name))
         .add_declaration(name, is_block_declaration)
     } else {
       self.defines.write().insert(name.to_owned());
@@ -71,7 +73,7 @@ impl Scope {
   pub fn contains(&self, name: &str) -> bool {
     if self.defines.read().contains(name) {
       true
-    } else if let Some(parent) = self.parent.upgrade() {
+    } else if let Some(parent) = self.parent.as_ref() {
       parent.contains(name)
     } else {
       false
@@ -81,7 +83,7 @@ impl Scope {
   pub fn find_defining_scope(self: &Arc<Self>, name: &str) -> Option<Arc<Self>> {
     if self.defines.read().contains(name) {
       Some(self.clone())
-    } else if let Some(parent) = self.parent.upgrade() {
+    } else if let Some(parent) = self.parent.as_ref() {
       parent.find_defining_scope(name)
     } else {
       None
