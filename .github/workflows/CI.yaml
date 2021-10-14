@@ -165,55 +165,6 @@ jobs:
           name: bindings-${{ matrix.settings.target }}
           path: ${{ env.APP_NAME }}.*.node
 
-  build-freebsd:
-    runs-on: macos-latest
-    name: Build FreeBSD
-    steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        id: build
-        uses: vmactions/freebsd-vm@v0.1.5
-        env:
-          DEBUG: 'napi:*'
-          RUSTUP_HOME: /usr/local/rustup
-          CARGO_HOME: /usr/local/cargo
-          RUSTUP_IO_THREADS: 1
-        with:
-          envs: 'DEBUG RUSTUP_HOME CARGO_HOME RUSTUP_IO_THREADS'
-          usesh: true
-          mem: 3000
-          prepare: |
-            pkg install -y curl node yarn npm python2
-            curl https://sh.rustup.rs -sSf --output rustup.sh
-            sh rustup.sh -y --profile minimal --default-toolchain stable
-            export PATH="/usr/local/cargo/bin:$PATH"
-            echo "~~~~ rustc --version ~~~~"
-            rustc --version
-            echo "~~~~ node -v ~~~~"
-            node -v
-            echo "~~~~ yarn --version ~~~~"
-            yarn --version
-            npm install -g pnpm
-            echo "~~~~ pnpm --version ~~~~"
-            pnpm --version
-          run: |
-            export PATH="/usr/local/cargo/bin:$PATH"
-            pwd
-            ls -lah
-            whoami
-            env
-            freebsd-version
-            pnpm install --frozen-lockfile
-            pnpm build
-            pnpm test
-            rm -rf node_modules
-            rm -rf target
-      - name: Upload artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: bindings-freebsd
-          path: ${{ env.APP_NAME }}.*.node
-
   test-macOS-windows-binding:
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
     needs:
@@ -449,7 +400,6 @@ jobs:
       - test-linux-arm-gnueabihf-binding
       - test-macOS-windows-binding
       - test-linux-aarch64-musl-binding
-      - build-freebsd
 
     steps:
       - uses: actions/checkout@v2
