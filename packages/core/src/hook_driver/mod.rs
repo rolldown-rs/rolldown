@@ -23,12 +23,7 @@ impl HookDriver {
 
   pub fn build_start() {}
 
-  pub fn resolve_id(
-    &self,
-    source: &str,
-    importer: Option<&str>,
-    // _parent_dir_cache: &RwLock<HashMap<String, String, RandomState>>,
-  ) -> Option<String> {
+  pub fn resolve_id(&self, source: &str, importer: Option<&str>) -> Option<String> {
     let id = built_in::resolve_id(source, importer);
     debug!("resolve_id: {:?}", id);
     id

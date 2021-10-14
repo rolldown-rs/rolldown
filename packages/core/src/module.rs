@@ -1,33 +1,134 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
-use std::sync::atomic::AtomicBool;
-use std::sync::RwLock;
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use ahash::RandomState;
-use log::debug;
 use rayon::prelude::*;
 use swc_common::{
   errors::{ColorConfig, Handler},
   FileName,
 };
-use swc_ecma_ast::{ModuleDecl, ModuleItem};
+use swc_ecma_ast::{ClassDecl, Decl, DefaultDecl, FnDecl, ModuleDecl, ModuleItem, Stmt};
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
+use crate::graph;
 use crate::graph::{Graph, ModOrExt};
 use crate::statement::Statement;
-use crate::{ast, graph};
+
+const PAR_THRESHOLD: usize = 8;
+
+macro_rules! stmt_auto_par {
+  ($stmt:ident) => {{
+    if $stmt.scope.defines.read().len() >= PAR_THRESHOLD {
+      $stmt
+        .scope
+        .defines
+        .read()
+        .par_iter()
+        .map(|s| s.clone())
+        .collect()
+    } else {
+      $stmt
+        .scope
+        .defines
+        .read()
+        .iter()
+        .map(|s| s.clone())
+        .collect()
+    }
+  }};
+}
+
+macro_rules! expand_module_in_statement {
+  ($statement:ident, $module:expr) => {{
+    let stmt_read_lock = $statement.node.read();
+    let statement: &ModuleItem = &stmt_read_lock;
+    if let ModuleItem::ModuleDecl(module_decl) = statement {
+      match module_decl {
+        ModuleDecl::Import(import_decl) => {
+          if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
+            &$module.get_graph(),
+            &import_decl.src.value.to_string(),
+            Some(&$module.id),
+          ) {
+            return Module::expand_all_statements(&m, false);
+          };
+          return vec![];
+        }
+        ModuleDecl::ExportNamed(node) => {
+          // export { foo } from './foo'
+          // export { foo as foo2 } from './foo'
+          // export * as foo from './foo'
+          if let Some(src) = &node.src {
+            if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
+              &$module.get_graph(),
+              &src.value.to_string(),
+              Some(&$module.id),
+            ) {
+              return Module::expand_all_statements(&m, false);
+            } else {
+              return vec![];
+            }
+          } else {
+            // skip `export { foo, bar, baz }`
+            return vec![];
+          }
+        }
+        ModuleDecl::ExportDecl(export_decl) => {
+          let export = export_decl.decl.clone();
+          drop(stmt_read_lock);
+          let mut stmt_write_lock = $statement.node.write();
+          *stmt_write_lock = ModuleItem::Stmt(Stmt::Decl(export));
+          drop(stmt_write_lock);
+        }
+        // remove `export` from `export default class Foo {...}`
+        ModuleDecl::ExportDefaultDecl(export_decl) => {
+          if let DefaultDecl::Class(node) = &export_decl.decl {
+            let ident = node.ident.clone().unwrap();
+            let class = node.class.clone();
+            drop(stmt_read_lock);
+            let mut stmt_write_lock = $statement.node.write();
+            *stmt_write_lock = ModuleItem::Stmt(Stmt::Decl(Decl::Class(ClassDecl {
+              // TODO: fix case like `export default class {}`
+              ident,
+              declare: false,
+              class,
+            })));
+          } else if let DefaultDecl::Fn(node) = &export_decl.decl {
+            // TODO: fix case like `export default function {}`
+            let ident = node.ident.clone().unwrap();
+            let function = node.function.clone();
+            drop(stmt_read_lock);
+            let mut stmt_write_lock = $statement.node.write();
+            *stmt_write_lock = ModuleItem::Stmt(Stmt::Decl(Decl::Fn(FnDecl {
+              ident,
+              declare: false,
+              function,
+            })));
+          }
+        }
+        _ => {}
+      }
+    }
+
+    if $statement.is_included.load(Ordering::Acquire) {
+      vec![]
+    } else {
+      $statement.is_included.store(true, Ordering::Release);
+      vec![$statement.clone()]
+    }
+  }};
+}
 
 #[derive(Clone)]
 pub struct Module {
   pub source: String,
   pub graph: *const Graph,
-  // pub(crate) swc_module: Option<*mut swc_ecma_ast::Module>,
-  pub statements: Vec<Arc<RwLock<Statement>>>,
+  pub statements: Vec<Arc<Statement>>,
   pub id: String,
   pub imports: HashMap<String, ImportDesc, RandomState>,
   pub exports: HashMap<String, ExportDesc, RandomState>,
-  pub defines: HashSet<String>,
+  pub defines: HashSet<String, RandomState>,
 }
 
 unsafe impl Sync for Module {}
@@ -51,37 +152,27 @@ impl Module {
     let statements = ast
       .body
       .into_iter()
-      .map(|node| Statement::new(node, id.clone()))
-      .map(RwLock::new)
-      .map(Arc::new)
-      .collect::<Vec<Arc<RwLock<Statement>>>>();
+      .map(|node| Arc::new(Statement::new(node, id.clone())))
+      .collect::<Vec<Arc<Statement>>>();
 
-    let defines = statements
-      .iter()
-      .map(|stmt| {
-        stmt
-          .read()
-          .unwrap()
-          .scope
-          .defines
-          .read()
-          .iter()
-          .map(|s| s.clone())
-          .collect()
-      })
-      .collect();
-    debug!("top defines {:?} id: {:?}", defines, id);
-    let module = Module {
+    let defines = if statements.len() >= PAR_THRESHOLD {
+      statements
+        .par_iter()
+        .map(|stmt| stmt_auto_par!(stmt))
+        .collect()
+    } else {
+      statements.iter().map(|stmt| stmt_auto_par!(stmt)).collect()
+    };
+
+    Module {
       statements,
       source,
-      id: id.clone(),
-      graph: Arc::as_ptr(&graph),
+      id,
+      graph: Arc::as_ptr(graph),
       imports: HashMap::default(),
       exports: HashMap::default(),
       defines,
-    };
-    module.analyse();
-    module
+    }
   }
 
   fn get_ast(source: String, filename: String) -> swc_ecma_ast::Module {
@@ -117,57 +208,7 @@ impl Module {
       .expect("failed to parser module")
   }
 
-  fn analyse(&self) {
-    // analyse imports and exports
-    // @TODO
-    // Handle duplicated
-    // let collects = self.statements
-    //   .iter()
-    //   .filter(|s| s.is_import_declaration)
-    //   .filter_map(|s| {
-    //     if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = s.node.as_ref() {
-    //       Some(import_decl.specifiers.iter().filter_map(move |specifier| {
-    //         let local_name;
-    //         let name;
-    //         match specifier {
-    //           // import foo from './foo'
-    //           swc_ecma_ast::ImportSpecifier::Default(n) => {
-    //             local_name = n.local.sym.to_string();
-    //             name = "default".to_owned();
-    //           }
-    //           // import { foo } from './foo'
-    //           // import { foo as foo2 } from './foo'
-    //           swc_ecma_ast::ImportSpecifier::Named(n) => {
-    //             local_name = n.local.sym.to_string();
-    //             name = n.imported.as_ref().map_or(
-    //               local_name.clone(), // `import { foo } from './foo'` doesn't has `imported` name, so we think `local_name` as `imported` name
-    //               |ident| ident.sym.to_string(), // `import { foo as _foo } from './foo'` has `imported` name 'foo'
-    //             );
-    //           }
-    //           // import * as foo from './foo'
-    //           swc_ecma_ast::ImportSpecifier::Namespace(n) => {
-    //             local_name = n.local.sym.to_string();
-    //             name = "*".to_owned()
-    //           }
-    //         }
-    //         Some((
-    //           local_name.clone(),
-    //           ImportDesc {
-    //             source: import_decl.src.value.to_string(),
-    //             name,
-    //             local_name,
-    //           },
-    //         ))
-    //       }))
-    //     } else {
-    //       None
-    //     }
-    //   })
-    //   .flatten()
-    //   .collect();
-  }
-
-  pub fn deconflict(&self, statements: &Vec<Statement>) {
+  pub fn de_conflict(&self, statements: &[Statement]) {
     // name => module_id
     let mut definers = HashMap::new();
     // conflict names
@@ -183,83 +224,24 @@ impl Module {
     });
   }
 
-  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<RwLock<Statement>>> {
-    // println!("expand_all_modules start from {:?}", self.id);
-    // self.is_included.store(true, Ordering::SeqCst);
-    // let statements = self
-    //   .take_swc_module()
-    //   .body
-    //   .into_par_iter()
-    //   .map(|i| Statement::new(i, self.id.clone()))
-    //   .collect::<Vec<Statement>>();
-
-    // self.deconflict(&statements);
-
-    let module_items = self
-      .statements
-      .iter()
-      // FIXME: will cause repated bundle
-      // .par_iter()
-      .flat_map(|statement| {
-        // let read_lock = statement.is_included.read();
-        // let is_included = *read_lock.deref();
-        // std::mem::drop(read_lock);
-        // if is_included {
-        //   return vec![];
-        // } else {
-        //   let mut write_lock = statement.is_included.write();
-        //   *write_lock = true;
-        //   std::mem::drop(write_lock);
-        // }
-        if let ModuleItem::ModuleDecl(module_decl) = &statement.read().unwrap().node {
-          match module_decl {
-            ModuleDecl::Import(import_decl) => {
-              if let Ok(ModOrExt::Mod(m)) = Graph::fetch_module(
-                &self.get_graph(),
-                &import_decl.src.value.to_string(),
-                Some(&self.id),
-              ) {
-                return Module::expand_all_statements(&m, false);
-              };
-              return vec![];
-            }
-            ModuleDecl::ExportNamed(node) => {
-              // export { foo } from './foo'
-              // export { foo as foo2 } from './foo'
-              // export * as foo from './foo'
-              if let Some(src) = &node.src {
-                if let Ok(ModOrExt::Mod(m)) =
-                  Graph::fetch_module(&self.get_graph(), &src.value.to_string(), Some(&self.id))
-                {
-                  return Module::expand_all_statements(&m, false);
-                } else {
-                  return vec![];
-                }
-              } else {
-                // skip `export { foo, bar, baz }`
-                return vec![];
-              }
-            }
-            _ => {}
-          }
-        }
-
-        ast::helper::fold_export_decl_to_decl(&mut statement.write().unwrap().node);
-        Statement::expand(statement)
-      })
-      .collect();
-    debug!("expand_all_modules from {:?}", self.id);
+  pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<Statement>> {
+    let module_items = if self.statements.len() >= PAR_THRESHOLD {
+      self
+        .statements
+        .par_iter()
+        .flat_map(|s| expand_module_in_statement!(s, self))
+        .collect()
+    } else {
+      self
+        .statements
+        .iter()
+        .flat_map(|s| expand_module_in_statement!(s, self))
+        .collect()
+    };
     module_items
   }
 
-  // fn take_swc_module(&self) -> Box<swc_ecma_ast::Module> {
-  //   unsafe { Box::from_raw(self.swc_module.unwrap()) }
-  // }
-
-  // fn get_swc_module(&self) -> &mut swc_ecma_ast::Module {
-  //   unsafe { Box::leak(Box::from_raw(self.swc_module.unwrap())) }
-  // }
-
+  #[inline]
   fn get_graph(&self) -> Arc<Graph> {
     unsafe {
       Arc::increment_strong_count(self.graph);

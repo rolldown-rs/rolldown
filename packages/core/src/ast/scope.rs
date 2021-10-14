@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Weak};
+use std::collections::HashSet;
+use std::sync::Arc;
 
+use ahash::RandomState;
 use swc_common::sync::RwLock;
-use swc_ecma_ast::{Decl, Pat, VarDeclKind};
 
 #[derive(Debug)]
 pub struct Scope {
   pub parent: Option<Arc<Scope>>,
   pub depth: u32,
-  // FIXME: collected defines has empty string "" 
-  pub defines: RwLock<HashSet<String>>,
+  // FIXME: collected defines has empty string ""
+  pub defines: RwLock<HashSet<String, RandomState>>,
   pub is_block_scope: bool,
 }
 
@@ -26,7 +26,7 @@ impl Default for Scope {
 
 impl Scope {
   pub fn new(parent: Option<Arc<Scope>>, params: Vec<String>, block: bool) -> Scope {
-    let mut defines = HashSet::new();
+    let mut defines = HashSet::default();
     params.into_iter().for_each(|p| {
       defines.insert(p);
     });
@@ -40,35 +40,16 @@ impl Scope {
   }
 
   pub fn add_declaration(&self, name: &str, is_block_declaration: bool) {
-    // let is_block_declaration = if let Decl::Var(var_decl) = &is_block_declaration {
-    //   matches!(var_decl.kind, VarDeclKind::Let | VarDeclKind::Const)
-    // } else {
-    //   false
-    // };
-
     if !is_block_declaration && self.is_block_scope {
-      
       self
         .parent
         .as_ref()
-        .expect(&format!("parent not found for name {:?}", name))
+        .unwrap_or_else(|| panic!("parent not found for name {:?}", name))
         .add_declaration(name, is_block_declaration)
     } else {
       self.defines.write().insert(name.to_owned());
     }
   }
-
-  // pub fn get_declaration(&self, name: &str) -> Option<Decl> {
-  //   let read_lock = self.declarations.read();
-  //   if read_lock.contains_key(name) {
-  //     return read_lock.get(name).cloned();
-  //   }
-  //   if let Some(parent) = &self.parent {
-  //     parent.get_declaration(name)
-  //   } else {
-  //     None
-  //   }
-  // }
 
   pub fn contains(&self, name: &str) -> bool {
     if self.defines.read().contains(name) {

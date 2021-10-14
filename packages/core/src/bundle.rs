@@ -1,13 +1,12 @@
-use rayon::prelude::*;
 use std::io::{self, Write};
 use std::sync::Arc;
-use std::{mem, time};
-use swc_common::{BytePos, LineCol, DUMMY_SP};
+use swc_common::{BytePos, LineCol};
 use swc_ecma_codegen::{text_writer::JsWriter, Node};
 use swc_ecma_parser::JscTarget;
 use thiserror::Error;
 
 use crate::graph;
+use crate::module::Module;
 
 #[derive(Debug, Error)]
 pub enum BundleError {
@@ -49,8 +48,7 @@ impl Bundle {
     w: W,
     sm: Option<&mut Vec<(BytePos, LineCol)>>,
   ) -> Result<(), BundleError> {
-    let statments = self.graph.build();
-    let emitter_time = time::Instant::now();
+    let statements = Module::expand_all_statements(&self.graph.entry_module, true);
     let mut emitter = swc_ecma_codegen::Emitter {
       cfg: swc_ecma_codegen::Config { minify: false },
       cm: graph::SOURCE_MAP.clone(),
@@ -63,21 +61,9 @@ impl Bundle {
         JscTarget::latest(),
       )),
     };
-    statments.iter().for_each(|stmt| {
-      stmt.read().unwrap().node.emit_with(&mut emitter);
-    });
-    // println!("Emitter time {:?}", emitter_time.elapsed());
-
-    // self.graph.get_swc_module_items(|mut items| {
-
-    //   let mut dest_module = swc_ecma_ast::Module {
-    //     shebang: None,
-    //     body: vec![],
-    //     span: DUMMY_SP,
-    //   };
-    //   mem::swap(&mut dest_module.body, &mut items);
-    //   emitter.emit_module(&dest_module).unwrap();
-    // });
+    for stmt in statements {
+      stmt.node.read().emit_with(&mut emitter)?;
+    }
     Ok(())
   }
 }
@@ -94,19 +80,19 @@ mod tests {
     assert!(bundle.generate(&mut output, Some(&mut sm)).is_ok());
     assert_eq!(
       String::from_utf8(output).expect("Output is not utf8"),
-      r#"export default function add(a, b) {
+      r#"function add(a, b) {
     return a + b;
-};
-export const noUsed = ()=>{
+}
+const noUsed = ()=>{
     return `I'm no used function`;
 };
-export default function mul(a, b) {
+function mul(a, b) {
     let result = 0;
     for(let i = 0; i < a; i++){
         result = add(result, b);
     }
     return result;
-};
+}
 console.log(mul(8, 9));
 "#
     )

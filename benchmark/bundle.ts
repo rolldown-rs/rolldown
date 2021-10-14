@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import { join } from 'path'
 
 import chalk from 'chalk'
@@ -17,7 +18,7 @@ async function bench(entry: string, entryName: string) {
   } = await build({
     entryPoints: [entry],
     bundle: true,
-    treeShaking: false,
+    treeShaking: true,
     sourcemap: true,
     minify: false,
     splitting: false,
@@ -26,19 +27,19 @@ async function bench(entry: string, entryName: string) {
   })
   const esbuildDuration = process.hrtime.bigint() - beforeEsbuild
   console.info(`esbuild [${name}]: `, Number(esbuildDuration / BigInt(1e6)).toFixed(2), 'ms')
-  require('fs').writeFileSync(join(__dirname, 'esbuild.js'), text)
+  await fs.writeFile(join(__dirname, `esbuild-${entryName}.js`), text)
   const beforeRolldown = process.hrtime.bigint()
   const { code } = await rolldown(entry, {
     sourcemap: true,
   })
   const rolldownDuration = process.hrtime.bigint() - beforeRolldown
   console.info(`rolldown: [${name}]`, Number(rolldownDuration / BigInt(1e6)).toFixed(2), 'ms')
-  require('fs').writeFileSync(join(__dirname, 'rolldown.js'), code)
+  await fs.writeFile(join(__dirname, `rolldown-${entryName}.js`), code)
   const beforeRollup = process.hrtime.bigint()
   await rollup({
     input: entry,
     cache: false,
-    treeshake: false,
+    treeshake: true,
   })
   const rollupDuration = process.hrtime.bigint() - beforeRollup
   console.info(`rollup: [${name}]`, Number(rollupDuration / BigInt(1e6)).toFixed(2), 'ms')
