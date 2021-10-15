@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -8,7 +9,8 @@ use swc_common::{
   errors::{ColorConfig, Handler},
   FileName,
 };
-use swc_ecma_ast::{ClassDecl, Decl, DefaultDecl, FnDecl, ModuleDecl, ModuleItem, Stmt};
+use swc_ecma_ast::{ClassDecl, Decl, DefaultDecl, EsVersion, FnDecl, ModuleDecl, ModuleItem, Stmt};
+use swc_ecma_parser::TsConfig;
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
 use crate::graph;
@@ -19,22 +21,11 @@ const PAR_THRESHOLD: usize = 8;
 
 macro_rules! stmt_auto_par {
   ($stmt:ident) => {{
-    if $stmt.scope.defines.read().len() >= PAR_THRESHOLD {
-      $stmt
-        .scope
-        .defines
-        .read()
-        .par_iter()
-        .map(|s| s.clone())
-        .collect()
+    let defines = $stmt.scope.defines.read();
+    if defines.len() >= PAR_THRESHOLD {
+      defines.par_iter().map(|s| s.clone()).collect()
     } else {
-      $stmt
-        .scope
-        .defines
-        .read()
-        .iter()
-        .map(|s| s.clone())
-        .collect()
+      defines.iter().map(|s| s.clone()).collect()
     }
   }};
 }
@@ -123,7 +114,7 @@ macro_rules! expand_module_in_statement {
 #[derive(Clone)]
 pub struct Module {
   pub source: String,
-  pub graph: *const Graph,
+  graph: *const Graph,
   pub statements: Vec<Arc<Statement>>,
   pub id: String,
   pub imports: HashMap<String, ImportDesc, RandomState>,
@@ -147,24 +138,20 @@ impl Module {
     }
   }
 
-  pub fn new(source: String, id: String, graph: &Arc<Graph>) -> Self {
+  pub fn new(source: String, id: String, graph: &Arc<Graph>) -> Result<Self, ()> {
     let ast = Module::get_ast(source.clone(), id.clone());
-    let statements = ast
+    let statements = ast?
       .body
-      .into_iter()
+      .into_par_iter()
       .map(|node| Arc::new(Statement::new(node, id.clone())))
       .collect::<Vec<Arc<Statement>>>();
 
-    let defines = if statements.len() >= PAR_THRESHOLD {
-      statements
-        .par_iter()
-        .map(|stmt| stmt_auto_par!(stmt))
-        .collect()
-    } else {
-      statements.iter().map(|stmt| stmt_auto_par!(stmt)).collect()
-    };
+    let defines = statements
+      .par_iter()
+      .map(|stmt| stmt_auto_par!(stmt))
+      .collect();
 
-    Module {
+    Ok(Module {
       statements,
       source,
       id,
@@ -172,40 +159,50 @@ impl Module {
       imports: HashMap::default(),
       exports: HashMap::default(),
       defines,
-    }
+    })
   }
 
-  fn get_ast(source: String, filename: String) -> swc_ecma_ast::Module {
+  fn get_ast(source: String, filename: String) -> Result<swc_ecma_ast::Module, ()> {
     let handler = Handler::with_tty_emitter(
       ColorConfig::Auto,
       true,
       false,
       Some(graph::SOURCE_MAP.clone()),
     );
-    let fm = graph::SOURCE_MAP.new_source_file(FileName::Custom(filename), source);
+    let p = Path::new(filename.as_str());
+    let fm = graph::SOURCE_MAP.new_source_file(FileName::Custom(filename.clone()), source);
+
+    let ts_config = TsConfig {
+      dynamic_import: true,
+      decorators: false,
+      import_assertions: true,
+      tsx: p
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext == "tsx" || ext == "jsx")
+        .unwrap_or(false),
+      ..Default::default()
+    };
 
     let lexer = Lexer::new(
       // We want to parse ecmascript
-      Syntax::Es(Default::default()),
+      Syntax::Typescript(ts_config),
       // JscTarget defaults to es5
-      Default::default(),
-      StringInput::from(&*fm),
+      EsVersion::latest(),
+      StringInput::from(fm.as_ref()),
       None,
     );
 
     let mut parser = Parser::new_from(lexer);
 
-    for e in parser.take_errors() {
+    parser.take_errors().into_iter().for_each(|e| {
       e.into_diagnostic(&handler).emit();
-    }
+    });
 
-    parser
-      .parse_module()
-      .map_err(|e| {
-        // Unrecoverable fatal error occurred
-        e.into_diagnostic(&handler).emit()
-      })
-      .expect("failed to parser module")
+    parser.parse_module().map_err(|e| {
+      // Unrecoverable fatal error occurred
+      e.into_diagnostic(&handler).emit()
+    })
   }
 
   pub fn de_conflict(&self, statements: &[Statement]) {
@@ -224,21 +221,13 @@ impl Module {
     });
   }
 
+  #[inline]
   pub fn expand_all_statements(&self, _is_entry_module: bool) -> Vec<Arc<Statement>> {
-    let module_items = if self.statements.len() >= PAR_THRESHOLD {
-      self
-        .statements
-        .par_iter()
-        .flat_map(|s| expand_module_in_statement!(s, self))
-        .collect()
-    } else {
-      self
-        .statements
-        .iter()
-        .flat_map(|s| expand_module_in_statement!(s, self))
-        .collect()
-    };
-    module_items
+    self
+      .statements
+      .par_iter()
+      .flat_map(|s| expand_module_in_statement!(s, self))
+      .collect()
   }
 
   #[inline]

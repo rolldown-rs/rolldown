@@ -22,6 +22,8 @@ pub enum GraphError {
   NoEntry,
   #[error("{0}")]
   IoError(io::Error),
+  #[error("Parse module failed")]
+  ParseModuleError,
 }
 
 impl From<io::Error> for GraphError {
@@ -58,7 +60,9 @@ impl Graph {
       hook_driver,
       // parent_dir_cache,
     });
-    let entry_module = Arc::new(Module::new(source, id.to_string(), &ret));
+    let entry_module = Arc::new(
+      Module::new(source, id.to_string(), &ret).map_err(|_| GraphError::ParseModuleError)?,
+    );
     let graph = Arc::make_mut(&mut ret);
     real_modules_by_id.insert(id, ModOrExt::Mod(entry_module.clone()));
     graph.entry_module = entry_module;
@@ -83,31 +87,30 @@ impl Graph {
     source: &str,
     importer: Option<&str>,
   ) -> Result<ModOrExt, GraphError> {
-    let module = this
+    this
       .hook_driver
       .resolve_id(source, importer)
       .map(|id| {
-        this.get_module(&id).unwrap_or_else(|| {
+        this.get_module(&id).map(|m| Ok(m)).unwrap_or_else(|| {
           let source = this.hook_driver.load(&id).unwrap();
-          let module = ModOrExt::Mod(Arc::new(Module::new(source, id.to_string(), this)));
-          this.insert_module(id.clone(), module.clone());
-          module
+          if let Ok(m) = Module::new(source, id.clone(), this) {
+            let module = ModOrExt::Mod(Arc::new(m));
+            this.insert_module(id, module.clone());
+            Ok(module)
+          } else {
+            return Err(GraphError::ParseModuleError);
+          }
         })
       })
       .unwrap_or_else(|| {
-        this.get_module(source).unwrap_or_else(|| {
+        this.get_module(source).map(|m| Ok(m)).unwrap_or_else(|| {
           let module = ModOrExt::Ext(Arc::new(ExternalModule {
             name: source.to_owned(),
           }));
           this.insert_module(source.to_owned(), module.clone());
-          module
+          Ok(module)
         })
-      });
-    if let ModOrExt::Mod(m) = &module {
-      log::debug!("fetch module {:?}", m.as_ref().id);
-    }
-
-    Ok(module)
+      })
   }
 }
 
