@@ -4,11 +4,10 @@ use crate::utils::nodejs;
 
 pub fn resolve_id(source: &str, importer: Option<&str>) -> Option<String> {
   let source = Path::new(source).to_path_buf();
-  let mut id;
-  if source.is_absolute() {
-    id = source
+  let mut id = if source.is_absolute() {
+    source
   } else if importer.is_none() {
-    id = nodejs::resolve(&source);
+    nodejs::resolve(&source)
   } else {
     let is_normal_import = source.starts_with(".") || source.starts_with("..");
     if !is_normal_import {
@@ -18,14 +17,15 @@ pub fn resolve_id(source: &str, importer: Option<&str>) -> Option<String> {
     }
     let importer = importer?;
     let importer_dir = Path::new(importer).parent()?;
-    id = nodejs::join(importer_dir, &source);
-  }
+    nodejs::join(importer_dir, &source)
+  };
 
   id.set_extension("js");
   id.to_str().map(|p| p.to_owned())
 }
 
 #[cfg(test)]
+#[cfg(not(target_os = "windows"))]
 mod tests {
   use super::*;
 

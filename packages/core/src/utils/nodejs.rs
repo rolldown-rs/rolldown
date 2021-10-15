@@ -5,35 +5,36 @@ use std::{
 
 use once_cell::sync::Lazy;
 
-static CURRENT_DIR: Lazy<String> =
+pub(crate) static CURRENT_DIR: Lazy<String> =
   Lazy::new(|| env::current_dir().unwrap().to_str().unwrap().to_owned());
 
 // https://www.reddit.com/r/rust/comments/hkkquy/anyone_knows_how_to_fscanonicalize_but_without/
 #[inline]
 fn normalize_path(path: &Path) -> PathBuf {
   let mut components = path.components().peekable();
-  let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
-    components.next();
+  let mut need_next = false;
+  let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek() {
+    need_next = true;
     PathBuf::from(c.as_os_str())
   } else {
     PathBuf::new()
   };
-
-  for component in components {
-    match component {
-      Component::Prefix(..) => unreachable!(),
-      Component::RootDir => {
-        ret.push(component.as_os_str());
-      }
-      Component::CurDir => {}
-      Component::ParentDir => {
-        ret.pop();
-      }
-      Component::Normal(c) => {
-        ret.push(c);
-      }
-    }
+  if need_next {
+    components.next();
   }
+  components.for_each(|component| match component {
+    Component::Prefix(..) => unreachable!(),
+    Component::RootDir => {
+      ret.push(component.as_os_str());
+    }
+    Component::CurDir => {}
+    Component::ParentDir => {
+      ret.pop();
+    }
+    Component::Normal(c) => {
+      ret.push(c);
+    }
+  });
   ret
 }
 
