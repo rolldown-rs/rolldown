@@ -91,19 +91,19 @@ impl Graph {
       .hook_driver
       .resolve_id(source, importer)
       .map(|id| {
-        this.get_module(&id).map(|m| Ok(m)).unwrap_or_else(|| {
+        this.get_module(&id).map(Ok).unwrap_or_else(|| {
           let source = this.hook_driver.load(&id).unwrap();
           if let Ok(m) = Module::new(source, id.clone(), this) {
             let module = ModOrExt::Mod(Arc::new(m));
             this.insert_module(id, module.clone());
             Ok(module)
           } else {
-            return Err(GraphError::ParseModuleError);
+            Err(GraphError::ParseModuleError)
           }
         })
       })
       .unwrap_or_else(|| {
-        this.get_module(source).map(|m| Ok(m)).unwrap_or_else(|| {
+        this.get_module(source).map(Ok).unwrap_or_else(|| {
           let module = ModOrExt::Ext(Arc::new(ExternalModule {
             name: source.to_owned(),
           }));
