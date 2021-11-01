@@ -5,7 +5,7 @@ import chalk from 'chalk'
 import { build } from 'esbuild'
 import { rollup } from 'rollup'
 
-import { rolldown } from '../packages/node'
+import { rolldown } from '../node'
 
 const LODASH_ENTRY = require.resolve('lodash-es')
 const THREE_JS_ENTRY = join(__dirname, 'three.js', 'src', 'Three.js')
