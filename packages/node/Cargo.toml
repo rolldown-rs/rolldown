@@ -1,6 +1,7 @@
 [package]
 edition = "2018"
 name = "node"
+publish = false
 version = "0.1.0"
 
 [lib]
@@ -9,7 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = {version = "1", features = ["serde_json"]}
 napi-derive = "1"
-rolldown = {path = "../core", version = "0.0.1"}
+rolldown = {path = "../core"}
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
@@ -18,7 +19,7 @@ serde_json = "1"
 mimalloc-rust = {version = "0.1"}
 
 [target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
-snmalloc-rs = {version = "0.2", features = ["16mib", "native-cpu", "usecxx20"]}
+snmalloc-rs = {version = "0.2", features = ["16mib", "native-cpu", "usecxx20", "build_cc"]}
 
 [build-dependencies]
 napi-build = "1"

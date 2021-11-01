@@ -4,6 +4,8 @@ env:
   DEBUG: 'napi:*'
   APP_NAME: 'rolldown'
   MACOSX_DEPLOYMENT_TARGET: '10.13'
+  # https://github.com/SchrodingerZhu/snmalloc-rs
+  CACHE_FRIENDLY_OFFSET: 64
 
 on:
   push:
