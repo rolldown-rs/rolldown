@@ -18,7 +18,7 @@ serde_json = "1"
 mimalloc-rust = {version = "0.1"}
 
 [target.'cfg(all(target_arch = "x86_64", not(target_env = "musl")))'.dependencies]
-snmalloc-rs = {version = "0.2", features = ["16mib", "native-cpu", "usecxx20"]}
+snmalloc-rs = {version = "0.2", features = ["16mib", "native-cpu", "usecxx20", "build_cc"]}
 
 [build-dependencies]
 napi-build = "1"

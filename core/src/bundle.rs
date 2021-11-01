@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 use std::sync::Arc;
 use swc_common::{BytePos, LineCol};
+use swc_ecma_ast::EsVersion;
 use swc_ecma_codegen::{text_writer::JsWriter, Node};
-use swc_ecma_parser::JscTarget;
 use thiserror::Error;
 
 use crate::graph;
@@ -58,7 +58,7 @@ impl Bundle {
         "\n",
         w,
         sm,
-        JscTarget::latest(),
+        EsVersion::latest(),
       )),
     };
     for stmt in statements {
