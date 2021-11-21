@@ -81,40 +81,40 @@ impl Statement {
     // debug!("defines: {:?}, scope defines: {:?}", self.defines, self.scope.defines);
   }
 
-  pub fn expand(self: &Arc<Self>, module: &Module, graph: &graph::Graph) -> Vec<Arc<Self>> {
-    if self.is_included.swap(true, Ordering::SeqCst) {
-      return vec![];
-    }
+  // pub fn expand(self: &Arc<Self>, module: &Module, graph: &graph::Graph) -> Vec<Arc<Self>> {
+  //   if self.is_included.swap(true, Ordering::SeqCst) {
+  //     return vec![];
+  //   }
 
-    let mut result = vec![];
+  //   let mut result = vec![];
 
-    log::debug!(
-      "expand statement depends on {:?} in module {}",
-      self.depends_on,
-      module.id
-    );
+  //   log::debug!(
+  //     "expand statement depends on {:?} in module {}",
+  //     self.depends_on,
+  //     module.id
+  //   );
 
-    // We have a statement, and it hasn't been included yet. First, include
-    // the statements it depends on
-    self.depends_on.iter().for_each(|name| {
-      if !self.defines.contains(name) {
-        // The name doesn't belong to this statement, we need to search it in module.
-        result.append(&mut module.define(name, graph));
-      }
-    });
+  //   // We have a statement, and it hasn't been included yet. First, include
+  //   // the statements it depends on
+  //   self.depends_on.iter().for_each(|name| {
+  //     if !self.defines.contains(name) {
+  //       // The name doesn't belong to this statement, we need to search it in module.
+  //       result.append(&mut module.define(name, graph));
+  //     }
+  //   });
 
-    // include the statement itself
-    result.push(self.clone());
+  //   // include the statement itself
+  //   result.push(self.clone());
 
-    // then include any statements that could modify the
-    self.defines.iter().for_each(|name| {
-      if let Some(modifications) = module.modifications.get(name) {
-        modifications.iter().for_each(|statement| {
-          result.append(&mut statement.expand(module, graph));
-        });
-      }
-    });
+  //   // then include any statements that could modify the
+  //   self.defines.iter().for_each(|name| {
+  //     if let Some(modifications) = module.modifications.get(name) {
+  //       modifications.iter().for_each(|statement| {
+  //         result.append(&mut statement.expand(module, graph));
+  //       });
+  //     }
+  //   });
 
-    result
-  }
+  //   result
+  // }
 }
