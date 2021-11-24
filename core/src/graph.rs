@@ -13,8 +13,8 @@ use thiserror::Error;
 use crate::module::analyse::ExportDesc;
 use crate::module_loader::ModuleLoader;
 use crate::types::{shared, Shared};
-use crate::Statement;
 use crate::utils::plugin_driver::PluginDriver;
+use crate::Statement;
 use crate::{external_module::ExternalModule, module::Module};
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
@@ -63,15 +63,21 @@ impl Graph {
   }
 
   fn generate_module_graph(&self) {
-    let entry_module = self.module_container.borrow_mut().add_entry_modules(&self.entry, true);
-
+    let entry_module = self.module_container.borrow_mut().add_entry_modules(
+      &normalize_entry_modules(vec![(None, self.entry.clone().into())]),
+      true,
+    );
   }
 
   fn build(&self) {
+    self.plugin_driver.borrow().build_start();
+
     self.generate_module_graph();
 
     self.plugin_driver.borrow().build_end()
   }
+
+  fn include_statements(&self) {}
 
   // pub fn build(&self) -> Vec<Arc<Statement>> {
   //   log::debug!("start build for entry {:?}", self.entry);
@@ -162,4 +168,21 @@ impl ModOrExt {
       None
     }
   }
+}
+
+pub fn normalize_entry_modules(
+  entry_modules: Vec<(Option<String>, String)>,
+) -> Vec<crate::module_loader::UnresolvedModule> {
+  entry_modules
+    .into_iter()
+    .map(|(name, id)| {
+      crate::module_loader::UnresolvedModule {
+        file_name: None,
+        id,
+        // implicitlyLoadedAfter: [],
+        importer: None,
+        name,
+      }
+    })
+    .collect()
 }

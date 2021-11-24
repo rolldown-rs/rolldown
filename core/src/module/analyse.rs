@@ -3,9 +3,10 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use swc_common::DUMMY_SP;
 use swc_ecma_ast::{
-  BindingIdent, ClassDecl, Decl, DefaultDecl, EmptyStmt, EsVersion, ExportSpecifier, Expr, FnDecl,
-  Ident, ImportDecl, ModuleDecl, ModuleItem, Pat, Stmt, VarDecl, VarDeclarator,
+  CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, FnDecl, Ident,
+  ImportDecl, Lit, ModuleDecl, ModuleItem,
 };
+use swc_ecma_visit::{Node, Visit, VisitWith};
 
 use crate::ast;
 
@@ -21,9 +22,12 @@ use swc_ecma_parser::{EsConfig, TsConfig};
 fn add_import(
   module_decl: &ModuleDecl,
   imports: &mut HashMap<String, ImportDesc>,
+  sources: &mut HashSet<String>,
   module_id: &str,
 ) {
   if let ModuleDecl::Import(import_decl) = module_decl {
+    let source = import_decl.src.value.to_string();
+    sources.insert(source);
     import_decl.specifiers.iter().for_each(|specifier| {
       let local_name;
       let name;
@@ -38,7 +42,7 @@ fn add_import(
         swc_ecma_ast::ImportSpecifier::Named(n) => {
           local_name = n.local.sym.to_string();
           name = n
-            .imported
+            .imported // => foo2 in `import { foo as foo2 } from './foo'`
             .as_ref()
             .map_or(local_name.clone(), |ident| ident.sym.to_string());
         }
@@ -61,11 +65,37 @@ fn add_import(
   }
 }
 
+fn add_dynamic_import(call_exp: &CallExpr, dyn_imports: &mut Vec<DynImportDesc>) {
+  if let ExprOrSuper::Expr(exp) = &call_exp.callee {
+    if let Expr::Ident(id) = exp.as_ref() {
+      let is_callee_import = id.sym.eq("import");
+      // FIXME: doesn't consider import(...a)
+      if is_callee_import {
+        if let Some(exp) = call_exp
+          .args
+          .get(0)
+          .map(|exp_or_spread| &exp_or_spread.expr)
+        {
+          if let Expr::Lit(Lit::Str(first_param)) = exp.as_ref() {
+            dyn_imports.push(DynImportDesc {
+              argument: first_param.value.to_string(),
+              id: None,
+            })
+          } else {
+            panic!("unkown dynamic import params")
+          }
+        }
+      }
+    }
+  }
+}
+
 fn add_export(
   module_decl: &ModuleDecl,
   exports: &mut HashMap<String, ExportDesc>,
   re_exports: &mut HashMap<String, ReExportDesc>,
   export_all_sources: &mut HashSet<String>,
+  sources: &mut HashSet<String>,
   module_id: &str,
 ) {
   match module_decl {
@@ -105,6 +135,7 @@ fn add_export(
             if let Some(source_node) = &node.src {
               // export { name } from './other'
               let source = source_node.value.to_string();
+              sources.insert(source.clone());
               let name = s
                 .exported
                 .as_ref()
@@ -136,6 +167,7 @@ fn add_export(
           ExportSpecifier::Namespace(s) => {
             // export * as name from './other'
             let source = node.src.as_ref().map(|str| str.value.to_string()).unwrap();
+            sources.insert(source.clone());
             let name = s.name.sym.to_string();
             re_exports.insert(
               name.clone(),
@@ -219,6 +251,7 @@ impl Module {
     let mut exports = HashMap::new();
     let mut re_exports = HashMap::new();
     let mut export_all_sources = HashSet::new();
+    let mut sources = HashSet::new();
 
     body
       .iter()
@@ -230,13 +263,14 @@ impl Module {
         }
       })
       .for_each(|module_decl| {
-        add_import(module_decl, &mut imports, module_id);
+        add_import(module_decl, &mut imports, &mut sources, &module_id);
         add_export(
           module_decl,
           &mut exports,
           &mut re_exports,
           &mut export_all_sources,
-          module_id,
+          &mut sources,
+          &module_id,
         );
       });
 
@@ -261,6 +295,11 @@ pub struct ReExportDesc {
   pub module_id: String,
   pub local_name: String,
   pub source: String,
+}
+
+pub struct DynImportDesc {
+  pub argument: String,
+  pub id: Option<String>,
 }
 
 pub fn parse_file(
@@ -340,4 +379,52 @@ pub(crate) fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
     // Unrecoverable fatal error occurred
     e.into_diagnostic(&handler).emit()
   })
+}
+
+pub struct ModuleInfoAnalyzer {
+  pub module_id: String,
+  pub imports: HashMap<String, ImportDesc>,
+  pub exports: HashMap<String, ExportDesc>,
+  pub re_exports: HashMap<String, ReExportDesc>,
+  pub export_all_sources: HashSet<String>,
+  pub dyn_imports: Vec<DynImportDesc>,
+  pub sources: HashSet<String>,
+}
+
+impl ModuleInfoAnalyzer {
+  fn new(module_id: String) -> Self {
+    Self {
+      module_id,
+      imports: HashMap::default(),
+      exports: HashMap::default(),
+      re_exports: HashMap::default(),
+      export_all_sources: HashSet::default(),
+      dyn_imports: Vec::default(),
+      sources: HashSet::default(),
+    }
+  }
+}
+
+impl Visit for ModuleInfoAnalyzer {
+  fn visit_module_decl(&mut self, node: &ModuleDecl, _parent: &dyn Node) {
+    add_import(node, &mut self.imports, &mut self.sources, &self.module_id);
+    add_export(
+      node,
+      &mut self.exports,
+      &mut self.re_exports,
+      &mut self.export_all_sources,
+      &mut self.sources,
+      &self.module_id,
+    );
+  }
+
+  fn visit_call_expr(&mut self, node: &CallExpr, _parent: &dyn Node) {
+    add_dynamic_import(node, &mut self.dyn_imports);
+  }
+}
+
+pub fn get_module_info_from_ast(ast: &swc_ecma_ast::Module, module_id: String) -> ModuleInfoAnalyzer {
+  let mut m = ModuleInfoAnalyzer::new(module_id);
+  ast.visit_children_with(&mut m);
+  m
 }

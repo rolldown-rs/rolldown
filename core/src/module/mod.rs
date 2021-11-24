@@ -12,7 +12,7 @@ use crate::graph::Graph;
 use crate::statement::Statement;
 use crate::types::{shared, Shared};
 
-use self::analyse::{ExportDesc, ImportDesc, ReExportDesc};
+use self::analyse::{DynImportDesc, ExportDesc, ImportDesc, ReExportDesc, get_module_info_from_ast, parse_file};
 pub mod analyse;
 
 pub struct Module {
@@ -27,14 +27,18 @@ pub struct Module {
   pub id: String,
   pub imports: HashMap<String, ImportDesc>,
   pub exports: HashMap<String, ExportDesc>,
-  // named re_export. sush as `export { foo } from ...` or `export * as foo from '...'`
+  pub dynamic_imports: Vec<DynImportDesc>,
   pub re_exports: HashMap<String, ReExportDesc>,
-  // just re-export. sush as `export * from ...`
   pub export_all_sources: HashSet<String>,
+  pub sources: HashSet<String>,
+  pub resolved_ids: HashMap<String, String>,
+  // named re_export. sush as `export { foo } from ...` or `export * as foo from '...'`
+  // just re-export. sush as `export * from ...`
   // already included name
   // defined: RwLock<HashSet<String, RandomState>>,
   // suggested name to replace current name
   // suggested_names: RwLock<HashMap<String, String>>,
+  pub is_user_defined_entry_point: bool,
 }
 
 unsafe impl Sync for Module {}
@@ -83,7 +87,11 @@ impl Module {
       imports: HashMap::default(),
       exports: HashMap::default(),
       re_exports: HashMap::default(),
+      dynamic_imports: Vec::default(),
       export_all_sources: HashSet::default(),
+      sources: HashSet::default(),
+      resolved_ids: HashMap::default(),
+      is_user_defined_entry_point: false,
       // definitions,
       // modifications,
       // defined: RwLock::new(HashSet::default()),
@@ -232,4 +240,19 @@ impl Module {
   // pub fn suggest_name(&self, name: String, suggestion: String) {
   //   self.suggested_names.write().insert(name, suggestion);
   // }
+}
+
+impl Module {
+  pub fn set_source(&mut self, source: String) {
+    let ast = parse_file(source, self.id.clone(), &graph::SOURCE_MAP).unwrap();
+    let module_info = get_module_info_from_ast(&ast, self.id.clone());
+
+    self.imports = module_info.imports;
+    self.exports = module_info.exports;
+    self.export_all_sources = module_info.export_all_sources;
+    self.dynamic_imports = module_info.dyn_imports;
+    self.sources = module_info.sources;
+  }
+
+  pub fn update_options(&self) {}
 }

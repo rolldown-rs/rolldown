@@ -5,7 +5,12 @@ use swc_ecma_ast::EsVersion;
 use swc_ecma_codegen::{text_writer::JsWriter, Node};
 use thiserror::Error;
 
-use crate::{graph, module::analyse, types::Shared, utils::plugin_driver::{self, PluginDriver}};
+use crate::{
+  graph,
+  module::analyse,
+  types::Shared,
+  utils::plugin_driver::{self, PluginDriver},
+};
 
 #[derive(Debug, Error)]
 pub enum BundleError {
@@ -38,7 +43,6 @@ pub struct Bundle {
 
 impl Bundle {
   pub fn new(entry: &str) -> Result<Self, BundleError> {
-
     let plugin_driver = PluginDriver::new();
 
     Ok(Self {

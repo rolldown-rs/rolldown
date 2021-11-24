@@ -5,10 +5,10 @@ mod bundle;
 mod external_module;
 mod graph;
 mod module;
+mod module_loader;
 mod statement;
 mod types;
 mod utils;
-mod module_loader;
 
 pub use bundle::*;
 pub use graph::*;
