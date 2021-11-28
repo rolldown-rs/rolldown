@@ -1,11 +1,19 @@
+use std::collections::HashSet;
+
 use crate::types::{shared, Shared};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ExternalModule {
-  pub name: String,
+  pub id: String,
+  pub importers: HashSet<String>,
+  pub dynamic_importers: HashSet<String>,
 }
 impl ExternalModule {
-  pub fn new(name: String) -> Shared<Self> {
-    shared(ExternalModule { name })
+  pub fn new(id: String) -> Shared<Self> {
+    shared(ExternalModule {
+      id,
+      importers: HashSet::default(),
+      dynamic_importers: HashSet::default(),
+    })
   }
 }

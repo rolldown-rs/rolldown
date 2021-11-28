@@ -1,7 +1,7 @@
 use std::{
   collections::HashSet,
   sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool},
     Arc,
   },
 };
@@ -11,7 +11,7 @@ use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
 use swc_ecma_visit::VisitWith;
 
-use crate::{ast::scope::Scope, graph, module::Module};
+use crate::{ast::scope::Scope};
 
 pub mod analyser;
 #[cfg(test)]

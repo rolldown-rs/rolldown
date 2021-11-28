@@ -1,86 +1,53 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::slice::SliceIndex;
 
-use ahash::RandomState;
-use log::debug;
+
+
+
 use rayon::prelude::*;
-use swc_common::sync::RwLock;
-use swc_ecma_ast::{ModuleDecl, ModuleItem};
 
-use crate::graph;
-use crate::graph::Graph;
-use crate::statement::Statement;
+
+
+use crate::module_loader::{ModuleLoader, ResolvedId};
+
 use crate::types::{shared, Shared};
+use crate::{graph, ModOrExt};
 
-use self::analyse::{DynImportDesc, ExportDesc, ImportDesc, ReExportDesc, get_module_info_from_ast, parse_file};
+use self::analyse::{
+  get_module_info_from_ast, parse_file, DynImportDesc, ExportDesc, ImportDesc, ReExportDesc,
+};
 pub mod analyse;
 
+#[derive(Debug)]
 pub struct Module {
-  // source code
   pub original_code: Option<String>,
-  // statements: Vec<Arc<Statement>>,
-  // name => Statement
-  // definitions: HashMap<String, Arc<Statement>>,
-  // pub modifications: HashMap<String, Vec<Arc<Statement>>>,
-  // filename
   pub is_entry: bool,
   pub id: String,
   pub imports: HashMap<String, ImportDesc>,
   pub exports: HashMap<String, ExportDesc>,
   pub dynamic_imports: Vec<DynImportDesc>,
+  // Named re_export. sush as `export { foo } from ...` or `export * as foo from '...'`
   pub re_exports: HashMap<String, ReExportDesc>,
+  pub exports_all: HashMap<String, String>,
+  // Just re-export. sush as `export * from ...`
   pub export_all_sources: HashSet<String>,
+  // id of imported modules
   pub sources: HashSet<String>,
-  pub resolved_ids: HashMap<String, String>,
-  // named re_export. sush as `export { foo } from ...` or `export * as foo from '...'`
-  // just re-export. sush as `export * from ...`
-  // already included name
-  // defined: RwLock<HashSet<String, RandomState>>,
-  // suggested name to replace current name
-  // suggested_names: RwLock<HashMap<String, String>>,
+  pub resolved_ids: HashMap<String, ResolvedId>,
+  // id of importers
+  pub importers: HashSet<String>,
+  pub export_all_modules: Vec<ModOrExt>,
   pub is_user_defined_entry_point: bool,
+  // FIXME: we should use HashSet for this
+  pub dependencies: Vec<ModOrExt>,
+  // FIXME: we should use HashSet for this
+  pub dynamic_dependencies: Vec<ModOrExt>,
+  pub dynamic_importers: HashSet<String>,
 }
-
-unsafe impl Sync for Module {}
-unsafe impl Send for Module {}
 
 impl Module {
   pub fn new(id: String, is_entry: bool) -> Shared<Self> {
-    // let ast = analyse::parse_file(source, id.clone(), &graph::SOURCE_MAP)?;
-
-    // let statements = ast
-    //   .body
-    //   .into_iter()
-    //   .map(|node| Arc::new(Statement::new(node, id.clone())))
-    //   .collect::<Vec<Arc<Statement>>>();
-
-    // let (imports, exports, re_exports, export_all_sources) = Module::analyse(&ast.body, &id);
-
-    // let defines = statements
-    //   .iter()
-    //   .flat_map(|stmt| stmt.defines.clone())
-    //   .collect::<Vec<String>>();
-    // log::debug!("top defines: {:?}, id: {:?}", defines, id);
-
-    // let definitions = statements
-    //   .iter()
-    //   .flat_map(|s| s.defines.iter().map(move |d| (d.clone(), s.clone())))
-    //   .collect();
-
-    // let mut modifications = HashMap::new();
-    // statements.iter().for_each(|s| {
-    //   s.modifies.iter().for_each(|name| {
-    //     if !modifications.contains_key(name) {
-    //       modifications.insert(name.clone(), vec![]);
-    //     }
-    //     if let Some(vec) = modifications.get_mut(name) {
-    //       vec.push(s.clone());
-    //     }
-    //   })
-    // });
-
     shared(Module {
-      // statements,
       original_code: None,
       id,
       is_entry,
@@ -89,157 +56,21 @@ impl Module {
       re_exports: HashMap::default(),
       dynamic_imports: Vec::default(),
       export_all_sources: HashSet::default(),
+      exports_all: HashMap::default(),
       sources: HashSet::default(),
       resolved_ids: HashMap::default(),
       is_user_defined_entry_point: false,
+      dependencies: Vec::default(),
+      dynamic_dependencies: Vec::default(),
+      importers: HashSet::default(),
+      dynamic_importers: HashSet::default(),
+      export_all_modules: Vec::default(),
       // definitions,
       // modifications,
       // defined: RwLock::new(HashSet::default()),
       // suggested_names: RwLock::new(HashMap::default()),
     })
   }
-
-  // #[inline]
-  // pub fn expand_all_statements(&self, is_entry_module: bool, graph: &Graph) -> Vec<Arc<Statement>> {
-  //   log::debug!("expand_all_statements {:?}", self.id);
-
-  //   let all_statements = self
-  //     .statements
-  //     .iter()
-  //     .flat_map(|s| {
-  //       if s.is_import_declaration {
-  //         vec![]
-  //       } else {
-  //         let read_lock = s.node.read();
-  //         let statement: &ModuleItem = &read_lock;
-  //         if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(node)) = statement {
-  //           if !node.specifiers.is_empty() && is_entry_module {
-  //             s.expand(self, graph)
-  //           } else {
-  //             vec![]
-  //           }
-  //         } else {
-  //           s.expand(self, graph)
-  //         }
-  //       }
-  //     })
-  //     .collect::<Vec<Arc<Statement>>>();
-
-  //   all_statements
-  // }
-
-  // pub fn define(&self, local_name: &str, graph: &Graph) -> Vec<Arc<Statement>> {
-  //   if self.defined.read().contains(local_name) {
-  //     log::debug!("already define {} in module {}", local_name, self.id);
-  //     vec![]
-  //   } else {
-  //     let result;
-  //     // check the name whether is imported from other module
-  //     if let Some(import_desc) = self.imports.get(local_name) {
-  //       let module = graph
-  //         .fetch_module(&import_desc.source, Some(&self.id))
-  //         .expect("Exist")
-  //         .into_mod()
-  //         .expect("A module");
-  //       log::debug!(
-  //         "define {}, which is {} from {}",
-  //         local_name,
-  //         import_desc.name,
-  //         module.id
-  //       );
-  //       // case: import { default as foo } from './foo'
-  //       if import_desc.name == "default" {
-  //         let local_name = import_desc.local_name.clone();
-  //         let mut suggestion = self
-  //           .suggested_names
-  //           .read()
-  //           .get(&local_name)
-  //           .map_or(local_name.clone(), |n| n.clone());
-  //         while module.imports.contains_key(&suggestion) {
-  //           suggestion.push('_');
-  //         }
-  //         module.suggest_name("default".to_owned(), suggestion);
-  //         // case: import { * as foo } from './foo'
-  //       } else if import_desc.name == "*" {
-  //         let local_name = import_desc.local_name.clone();
-  //         let suggestion = self
-  //           .suggested_names
-  //           .read()
-  //           .get(&local_name)
-  //           .map_or(local_name.clone(), |n| n.clone());
-  //         module.suggest_name("*".to_owned(), suggestion.clone());
-  //         module.suggest_name("default".to_owned(), suggestion + "__default");
-
-  //         graph.insert_internal_namespace_module_id(module.id.clone());
-  //         result = module.expand_all_statements(false, graph);
-  //         return result;
-  //       }
-
-  //       // check the name whether is exported from other module
-  //       if let Some(export_desc) = module.exports.get(&import_desc.name) {
-  //         let name = match export_desc {
-  //           ExportDesc::Decl(node) => &node.local_name,
-  //           ExportDesc::Default(node) => &node.local_name,
-  //           ExportDesc::Named(node) => &node.local_name,
-  //         };
-  //         result = module.define(name, graph);
-  //       } else {
-  //         panic!(
-  //           "Module {:?} does not export {:?} (imported by {:?})",
-  //           module.id, import_desc.name, self.id
-  //         )
-  //       }
-  //     } else if local_name == "default"
-  //       && self
-  //         .exports
-  //         .get("default")
-  //         .map(|v| v.has_identifier())
-  //         .unwrap_or(false)
-  //     {
-  //       let name = match self.exports.get("default").as_ref().unwrap() {
-  //         ExportDesc::Default(node) => node.identifier.as_ref().unwrap(),
-  //         _ => panic!("bug"),
-  //       };
-  //       result = self.define(name, graph)
-  //       // result = vec![];
-  //     } else {
-  //       let statement;
-  //       if local_name == "default" {
-  //         if let Some(ExportDesc::Default(node)) = self.exports.get("default") {
-  //           statement = Some(&node.statement)
-  //         } else {
-  //           statement = self.definitions.get(local_name)
-  //         }
-  //       } else {
-  //         statement = self.definitions.get(local_name)
-  //       }
-
-  //       if statement.is_none() {
-  //         debug!("detect global name {} in {}", local_name, self.id)
-  //       }
-
-  //       result = statement.map_or(vec![], |s| s.expand(self, graph));
-  //     }
-  //     self.defined.write().insert(local_name.to_string());
-
-  //     log::debug!(
-  //       "define {} with {} statements in module {}",
-  //       local_name,
-  //       result.len(),
-  //       self.id
-  //     );
-
-  //     result
-  //   }
-  // }
-
-  // pub fn get_canonical_name(&self, raw_local_name: &str) -> String {
-  //   raw_local_name.to_owned()
-  // }
-
-  // pub fn suggest_name(&self, name: String, suggestion: String) {
-  //   self.suggested_names.write().insert(name, suggestion);
-  // }
 }
 
 impl Module {
@@ -255,4 +86,57 @@ impl Module {
   }
 
   pub fn update_options(&self) {}
+
+  pub fn link_imports(&mut self, module_loader: &ModuleLoader) {
+    self.add_modules_to_import_descriptions(module_loader);
+    self.add_modules_to_re_export_descriptions(module_loader);
+
+    self.exports.keys().for_each(|name| {
+      if name != "default" {
+        self.exports_all.insert(name.clone(), self.id.clone());
+      }
+
+      let mut external_modules = vec![];
+      self.export_all_sources.iter().for_each(|source| {
+        let module_id = &self.resolved_ids.get(source).unwrap().id;
+        let module = module_loader.modules_by_id.get(module_id).unwrap();
+        match module {
+          ModOrExt::Ext(module) => {
+            external_modules.push(module.clone());
+          }
+          ModOrExt::Mod(module) => {
+            self.export_all_modules.push(module.clone().into());
+            module.borrow().exports_all.keys().for_each(|name| {
+              if self.exports_all.contains_key(name) {
+                panic!("NamespaceConflict")
+              }
+              self.exports_all.insert(name.clone(), name.clone());
+            })
+          }
+        }
+      });
+      self.export_all_modules.append(
+        &mut external_modules
+          .iter()
+          .map(|ext| ext.clone().into())
+          .collect(),
+      );
+    })
+  }
+
+  fn add_modules_to_import_descriptions(&mut self, module_loader: &ModuleLoader) {
+    self.imports.values_mut().for_each(|specifier| {
+      let id = &self.resolved_ids.get(&specifier.source).unwrap().id;
+      let module = module_loader.modules_by_id.get(id).unwrap();
+      specifier.module.replace(module.clone());
+    });
+  }
+
+  fn add_modules_to_re_export_descriptions(&mut self, module_loader: &ModuleLoader) {
+    self.re_exports.values_mut().for_each(|specifier| {
+      let id = &self.resolved_ids.get(&specifier.source).unwrap().id;
+      let module = module_loader.modules_by_id.get(id).unwrap();
+      specifier.module.replace(module.clone());
+    });
+  }
 }

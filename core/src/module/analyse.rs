@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path};
 
 use swc_common::DUMMY_SP;
 use swc_ecma_ast::{
@@ -8,9 +8,8 @@ use swc_ecma_ast::{
 };
 use swc_ecma_visit::{Node, Visit, VisitWith};
 
-use crate::ast;
+use crate::{ast, ModOrExt};
 
-use super::Module;
 use swc_common::sync::Lrc;
 use swc_common::{
   errors::{ColorConfig, Handler},
@@ -59,6 +58,7 @@ fn add_import(
           source: import_decl.src.value.to_string(),
           name,
           local_name,
+          module: None,
         },
       );
     })
@@ -66,10 +66,12 @@ fn add_import(
 }
 
 fn add_dynamic_import(call_exp: &CallExpr, dyn_imports: &mut Vec<DynImportDesc>) {
+  println!("is_callee_import {:#?}", call_exp.callee);
   if let ExprOrSuper::Expr(exp) = &call_exp.callee {
     if let Expr::Ident(id) = exp.as_ref() {
-      let is_callee_import = id.sym.eq("import");
-      // FIXME: doesn't consider import(...a)
+      let is_callee_import = id.sym.to_string() == "import";
+      println!("is_callee_import {:#?}", is_callee_import);
+      // FIXME: should warn about pattern like `import(...a)`
       if is_callee_import {
         if let Some(exp) = call_exp
           .args
@@ -80,6 +82,7 @@ fn add_dynamic_import(call_exp: &CallExpr, dyn_imports: &mut Vec<DynImportDesc>)
             dyn_imports.push(DynImportDesc {
               argument: first_param.value.to_string(),
               id: None,
+              resolution: None,
             })
           } else {
             panic!("unkown dynamic import params")
@@ -146,6 +149,7 @@ fn add_export(
                   local_name: s.orig.sym.to_string(),
                   module_id: module_id.into(),
                   source,
+                  module: None,
                 },
               );
             } else {
@@ -175,6 +179,7 @@ fn add_export(
                 local_name: "*".into(),
                 module_id: module_id.into(),
                 source,
+                module: None,
               },
             );
           }
@@ -237,69 +242,34 @@ fn add_export(
   }
 }
 
-impl Module {
-  pub fn analyse(
-    body: &[ModuleItem],
-    module_id: &str,
-  ) -> (
-    HashMap<String, ImportDesc>,
-    HashMap<String, ExportDesc>,
-    HashMap<String, ReExportDesc>,
-    HashSet<String>,
-  ) {
-    let mut imports = HashMap::new();
-    let mut exports = HashMap::new();
-    let mut re_exports = HashMap::new();
-    let mut export_all_sources = HashSet::new();
-    let mut sources = HashSet::new();
-
-    body
-      .iter()
-      .flat_map(|module_item| {
-        if let ModuleItem::ModuleDecl(module_decl) = module_item {
-          Some(module_decl)
-        } else {
-          None
-        }
-      })
-      .for_each(|module_decl| {
-        add_import(module_decl, &mut imports, &mut sources, &module_id);
-        add_export(
-          module_decl,
-          &mut exports,
-          &mut re_exports,
-          &mut export_all_sources,
-          &mut sources,
-          &module_id,
-        );
-      });
-
-    (imports, exports, re_exports, export_all_sources)
-  }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ImportDesc {
+  pub module: Option<ModOrExt>,
   pub module_id: String,
   pub source: String,
   pub name: String,
   pub local_name: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct ExportDesc {
   pub identifier: Option<String>,
   pub local_name: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct ReExportDesc {
+  pub module: Option<ModOrExt>,
   pub module_id: String,
   pub local_name: String,
   pub source: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct DynImportDesc {
   pub argument: String,
   pub id: Option<String>,
+  pub resolution: Option<ModOrExt>,
 }
 
 pub fn parse_file(
@@ -419,11 +389,15 @@ impl Visit for ModuleInfoAnalyzer {
   }
 
   fn visit_call_expr(&mut self, node: &CallExpr, _parent: &dyn Node) {
+    // FIXME: It doesn't work for nested expression :(.
     add_dynamic_import(node, &mut self.dyn_imports);
   }
 }
 
-pub fn get_module_info_from_ast(ast: &swc_ecma_ast::Module, module_id: String) -> ModuleInfoAnalyzer {
+pub fn get_module_info_from_ast(
+  ast: &swc_ecma_ast::Module,
+  module_id: String,
+) -> ModuleInfoAnalyzer {
   let mut m = ModuleInfoAnalyzer::new(module_id);
   ast.visit_children_with(&mut m);
   m

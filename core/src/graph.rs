@@ -1,75 +1,95 @@
-use std::collections::{HashMap, HashSet};
-use std::io;
-use std::sync::Arc;
 
-use ahash::RandomState;
+
+
+
+
 use once_cell::sync::Lazy;
 use swc_common::{
-  sync::{Lrc, RwLock},
+  sync::{Lrc},
   SourceMap,
 };
-use thiserror::Error;
 
-use crate::module::analyse::ExportDesc;
+
+
 use crate::module_loader::ModuleLoader;
-use crate::types::{shared, Shared};
+use crate::types::{Shared};
 use crate::utils::plugin_driver::PluginDriver;
-use crate::Statement;
 use crate::{external_module::ExternalModule, module::Module};
+
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
 
-#[derive(Debug, Error)]
-pub enum GraphError {
-  #[error("Entry [{0}] not found")]
-  EntryNotFound(String),
-  #[error("Bundle doesn't have any entry")]
-  NoEntry,
-  #[error("{0}")]
-  IoError(io::Error),
-  #[error("Parse module failed")]
-  ParseModuleError,
-}
+// #[derive(Debug, Error)]
+// pub enum GraphError {
+//   #[error("Entry [{0}] not found")]
+//   EntryNotFound(String),
+//   #[error("Bundle doesn't have any entry")]
+//   NoEntry,
+//   #[error("{0}")]
+//   IoError(io::Error),
+//   #[error("Parse module failed")]
+//   ParseModuleError,
+// }
 
-impl From<io::Error> for GraphError {
-  fn from(err: io::Error) -> Self {
-    Self::IoError(err)
-  }
-}
+// impl From<io::Error> for GraphError {
+//   fn from(err: io::Error) -> Self {
+//     Self::IoError(err)
+//   }
+// }
 
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Graph {
-  entry: String,
-  entry_modules: Vec<Shared<Module>>,
-  module_container: Shared<ModuleLoader>,
-  plugin_driver: Shared<PluginDriver>,
+  pub entry: String,
+  pub entry_modules: Vec<Shared<Module>>,
+  pub module_loader: Shared<ModuleLoader>,
+  pub plugin_driver: Shared<PluginDriver>,
+  pub modules: Vec<Shared<Module>>,
+  pub external_modules: Vec<Shared<ExternalModule>>,
 }
 
 impl Graph {
   // build a module using dependency relationship
-  pub fn new(entry: &str, plugin_driver: Shared<PluginDriver>) -> Result<Self, GraphError> {
-    // generate the entry module
+  pub fn new(entry: &str) -> Self {
+    env_logger::init();
+
+    let plugin_driver = PluginDriver::new();
     let module_container = ModuleLoader::new(entry.to_owned(), plugin_driver.clone());
 
     let graph = Self {
       entry: entry.to_owned(),
       entry_modules: vec![],
-      module_container,
+      module_loader: module_container,
       plugin_driver,
+      modules: vec![],
+      external_modules: vec![],
     };
 
-    Ok(graph)
+    graph
   }
 
-  fn generate_module_graph(&self) {
-    let entry_module = self.module_container.borrow_mut().add_entry_modules(
+  pub fn generate_module_graph(&mut self) {
+    self.entry_modules = self.module_loader.borrow_mut().add_entry_modules(
       &normalize_entry_modules(vec![(None, self.entry.clone().into())]),
       true,
     );
+
+    self
+      .module_loader
+      .borrow()
+      .modules_by_id
+      .values()
+      .for_each(|mod_or_ext| match mod_or_ext {
+        ModOrExt::Ext(module) => {
+          self.external_modules.push(module.clone());
+        }
+        ModOrExt::Mod(module) => {
+          self.modules.push(module.clone());
+        }
+      });
   }
 
-  fn build(&self) {
+  pub fn build(&mut self) {
     self.plugin_driver.borrow().build_start();
 
     self.generate_module_graph();
@@ -124,11 +144,17 @@ impl Graph {
   // }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ModOrExt {
   Mod(Shared<Module>),
   Ext(Shared<ExternalModule>),
 }
+
+// impl PartialEq for ModOrExt {
+//   fn eq(&self, other: &Self) -> bool {
+//     true
+//   }
+// }
 
 impl std::convert::From<Shared<ExternalModule>> for ModOrExt {
   fn from(ext: Shared<ExternalModule>) -> Self {
@@ -166,6 +192,28 @@ impl ModOrExt {
       Some(m)
     } else {
       None
+    }
+  }
+
+  pub fn add_importers(&self, id: String) {
+    match self {
+      ModOrExt::Mod(m) => {
+        m.borrow_mut().importers.insert(id);
+      }
+      ModOrExt::Ext(m) => {
+        m.borrow_mut().importers.insert(id);
+      }
+    }
+  }
+
+  pub fn add_dynamic_importers(&self, id: String) {
+    match self {
+      ModOrExt::Mod(m) => {
+        m.borrow_mut().dynamic_importers.insert(id);
+      }
+      ModOrExt::Ext(m) => {
+        m.borrow_mut().dynamic_importers.insert(id);
+      }
     }
   }
 }

@@ -49,3 +49,10 @@ pub fn join(p1: &Path, p2: &Path) -> PathBuf {
   let p = Path::new(p1).join(p2);
   normalize_path(&p)
 }
+
+pub fn relative(p1: &Path, p2: &Path) -> PathBuf {
+  // FIXME:
+  let p2 = p2.strip_prefix(p1).unwrap().to_owned();
+
+  ("./".to_owned() + &p2.to_str().unwrap()).into()
+}
