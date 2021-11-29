@@ -46,6 +46,7 @@ impl ModuleLoader {
   // }
 
   fn add_module_source(&self, id: &str, _importer: Option<&str>, module: &mut Module) {
+    debug!("add_module_source of id: {}", id);
     let source = self
       .plugin_driver
       .borrow()
@@ -151,6 +152,7 @@ impl ModuleLoader {
     importer: &str,
     resolved_id: &ResolvedId,
   ) -> ModOrExt {
+    debug!("fetch_resolved_dependency for {:#?}", resolved_id);
     if resolved_id.external {
       let module = self
         .modules_by_id

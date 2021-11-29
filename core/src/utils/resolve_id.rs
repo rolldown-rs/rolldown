@@ -20,7 +20,7 @@ pub fn resolve_id(
   } else {
     // external modules (non-entry modules that start with neither '.' or '/')
     // are skipped at this stage.
-    if importer.is_none() && !is_absolute(source) && !source.starts_with(".") {
+    if !importer.is_none() && !is_absolute(source) && !source.starts_with(".") {
       None
     } else {
       Some(ResolvedId::new(

@@ -6,7 +6,7 @@ use swc_ecma_ast::{
   CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, FnDecl, Ident,
   ImportDecl, Lit, ModuleDecl, ModuleItem,
 };
-use swc_ecma_visit::{Node, Visit, VisitWith};
+use swc_ecma_visit::{Node, Visit, VisitAll, VisitAllWith, VisitWith};
 
 use crate::{ast, ModOrExt};
 
@@ -375,7 +375,7 @@ impl ModuleInfoAnalyzer {
   }
 }
 
-impl Visit for ModuleInfoAnalyzer {
+impl VisitAll for ModuleInfoAnalyzer {
   fn visit_module_decl(&mut self, node: &ModuleDecl, _parent: &dyn Node) {
     add_import(node, &mut self.imports, &mut self.sources, &self.module_id);
     add_export(
@@ -399,6 +399,6 @@ pub fn get_module_info_from_ast(
   module_id: String,
 ) -> ModuleInfoAnalyzer {
   let mut m = ModuleInfoAnalyzer::new(module_id);
-  ast.visit_children_with(&mut m);
+  ast.visit_all_children_with(&mut m);
   m
 }

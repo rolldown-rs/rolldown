@@ -8,6 +8,6 @@ mod basic {
     let mut graph = Graph::new("./tests/fixtures/dynamic-import/main.js");
     graph.build();
 
-    // println!("entry_modules {:#?}", graph.entry_modules)
+    println!("entry_modules {:#?}", graph.entry_modules)
   }
 }
