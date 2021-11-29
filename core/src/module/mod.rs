@@ -1,21 +1,11 @@
 use std::collections::{HashMap, HashSet};
-use std::slice::SliceIndex;
 
-
-
-
-use rayon::prelude::*;
-
-
-
-use crate::module_loader::{ModuleLoader, ResolvedId};
-
-use crate::types::{shared, Shared};
-use crate::{graph, ModOrExt};
+use crate::module_loader::{ModuleLoader, SOURCE_MAP};
 
 use self::analyse::{
   get_module_info_from_ast, parse_file, DynImportDesc, ExportDesc, ImportDesc, ReExportDesc,
 };
+use crate::types::{shared, ModOrExt, ResolvedId, Shared};
 pub mod analyse;
 
 #[derive(Debug)]
@@ -28,9 +18,9 @@ pub struct Module {
   pub dynamic_imports: Vec<DynImportDesc>,
   // Named re_export. sush as `export { foo } from ...` or `export * as foo from '...'`
   pub re_exports: HashMap<String, ReExportDesc>,
-  pub exports_all: HashMap<String, String>,
   // Just re-export. sush as `export * from ...`
   pub export_all_sources: HashSet<String>,
+  pub exports_all: HashMap<String, String>,
   // id of imported modules
   pub sources: HashSet<String>,
   pub resolved_ids: HashMap<String, ResolvedId>,
@@ -75,7 +65,7 @@ impl Module {
 
 impl Module {
   pub fn set_source(&mut self, source: String) {
-    let ast = parse_file(source, self.id.clone(), &graph::SOURCE_MAP).unwrap();
+    let ast = parse_file(source, self.id.clone(), &SOURCE_MAP).unwrap();
     let module_info = get_module_info_from_ast(&ast, self.id.clone());
 
     self.imports = module_info.imports;

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{module_loader::ResolvedId, types::ResolveIdResult};
+use crate::types::{ResolveIdResult, ResolvedId};
 
 use super::{nodejs, plugin_driver::PluginDriver};
 

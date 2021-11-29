@@ -1,9 +1,6 @@
 use std::{
   collections::HashSet,
-  sync::{
-    atomic::{AtomicBool},
-    Arc,
-  },
+  sync::{atomic::AtomicBool, Arc},
 };
 
 use ahash::RandomState;
@@ -11,7 +8,7 @@ use swc_common::sync::RwLock;
 use swc_ecma_ast::*;
 use swc_ecma_visit::VisitWith;
 
-use crate::{ast::scope::Scope};
+use crate::ast::scope::Scope;
 
 pub mod analyser;
 #[cfg(test)]

@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::{collections::HashMap, path::Path};
 
-
 use swc_ecma_ast::{
   CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, Lit, ModuleDecl,
 };
 use swc_ecma_visit::{Node, VisitAll, VisitAllWith};
 
-use crate::{ast, ModOrExt};
+use crate::ast;
+use crate::types::ModOrExt;
 
 use swc_common::sync::Lrc;
 use swc_common::{

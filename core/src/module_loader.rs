@@ -4,9 +4,10 @@ use log::debug;
 use once_cell::sync::Lazy;
 use swc_common::{sync::Lrc, SourceMap};
 
-use crate::analyse::{DynImportDesc};
-use crate::types::ResolveIdResult;
-use crate::utils::resolve_id::{resolve_id};
+use crate::analyse::DynImportDesc;
+use crate::types::{ModOrExt, ResolveIdResult, ResolvedId, UnresolvedModule};
+use crate::utils;
+use crate::utils::resolve_id::resolve_id;
 use crate::utils::transform::transform;
 use crate::{external_module::ExternalModule, module::Module};
 use crate::{
@@ -14,36 +15,22 @@ use crate::{
   utils::plugin_driver::PluginDriver,
   // GraphError,
 };
-use crate::{utils, ModOrExt};
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
 
 #[derive(Clone)]
 pub struct ModuleLoader {
-  // cached module
-  entry: String,
   pub modules_by_id: HashMap<String, ModOrExt>,
   plugin_driver: Shared<PluginDriver>,
 }
 
 impl ModuleLoader {
-  pub fn new(entry: String, plugin_driver: Shared<PluginDriver>) -> Shared<Self> {
+  pub fn new(plugin_driver: Shared<PluginDriver>) -> Shared<Self> {
     shared(Self {
-      entry,
       modules_by_id: HashMap::default(),
       plugin_driver,
     })
   }
-
-  // #[inline]
-  // pub fn get_module(&self, id: &str) -> Option<ModOrExt> {
-  //   self.modules_by_id.get(id).cloned()
-  // }
-
-  // #[inline]
-  // pub(crate) fn insert_module(&mut self, id: String, module: ModOrExt) {
-  //   self.modules_by_id.insert(id, module);
-  // }
 
   fn add_module_source(&self, id: &str, _importer: Option<&str>, module: &mut Module) {
     debug!("add_module_source of id: {}", id);
@@ -78,7 +65,7 @@ impl ModuleLoader {
       let resolve_static_dependency = self.get_resolve_static_dependency(&mut module.borrow_mut());
       let mut resolve_dynamic_import = self.get_resolve_dynamic_import(&mut module.borrow_mut());
 
-      // After resolving dependency of module. Rollup think the module is fullly parsed.
+      // After resolving dependencies of the module. Rollup think the module is fullly parsed.
       // So, we call `moduleParsed` hook.
 
       self.plugin_driver.borrow().module_parsed();
@@ -257,7 +244,12 @@ impl ModuleLoader {
     false
   }
 
-  fn resolve_id(&self, source: &str, importer: Option<&str>, _is_entry: bool) -> Option<ResolvedId> {
+  fn resolve_id(
+    &self,
+    source: &str,
+    importer: Option<&str>,
+    _is_entry: bool,
+  ) -> Option<ResolvedId> {
     let is_external = self.external(source, importer, false);
     if is_external {
       None
@@ -266,16 +258,6 @@ impl ModuleLoader {
       id.map(|part| ResolvedId::new(part.id, part.external))
     }
   }
-
-  // pub fn get_entry_module(&self) -> Shared<Module> {
-  //   let entry_module = self
-  //     .fetch_module(&self.entry, None)
-  //     .unwrap()
-  //     .into_mod()
-  //     .expect("entry module not found");
-
-  //   entry_module
-  // }
 
   pub fn add_entry_modules(
     &mut self,
@@ -317,48 +299,4 @@ impl ModuleLoader {
       panic!("resolve_id_result is None")
     }
   }
-
-  // fn add_defaults_to_resolved_id(&self, part: PartialId) -> ResolvedId {
-
-  //   ResolvedId::new(part.id, part.external)
-  // }
-
-  // fn get_resolve_static_dependency_promises(module: &Module) -> Vec<(String, ResolvedId)> {
-  //   module.sources.iter().map(|source| {
-  //     let resolved_id;
-  //     if let Some(resolved) = module.resolved_ids.get(source) {
-  //       resolved_id = resolved.clone()
-  //     } else {
-  //       resolved_id
-  //     };
-  //     (source.clone(), resolved_id)
-  //   }).collect()
-  // }
-
-  // fn resolve_id() -> Option<ResolvedId> {
-  //   reso
-  // }
-}
-
-#[derive(Clone, Debug)]
-pub struct ResolvedId {
-  pub id: String,
-  pub external: bool,
-}
-
-impl ResolvedId {
-  pub fn new(id: String, external: bool) -> Self {
-    Self {
-      id,
-      external,
-      // module_side_effects: false,
-    }
-  }
-}
-
-pub struct UnresolvedModule {
-  pub file_name: Option<String>,
-  pub id: String,
-  pub importer: Option<String>,
-  pub name: Option<String>,
 }
