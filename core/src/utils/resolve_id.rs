@@ -4,8 +4,8 @@ use crate::{module_loader::ResolvedId, types::ResolveIdResult};
 
 use super::{nodejs, plugin_driver::PluginDriver};
 
-fn is_absolute(_path: &str) -> bool {
-  return false;
+fn is_absolute(path: &str) -> bool {
+  Path::new(path).is_absolute()
 }
 
 pub fn resolve_id(
@@ -40,7 +40,7 @@ pub fn resolve_id_via_plugins(
   None
 }
 
-fn default_resolve_id(source: &str, importer: Option<&str>, preserve_symlinks: bool) -> String {
+fn default_resolve_id(source: &str, importer: Option<&str>, _preserve_symlinks: bool) -> String {
   let source = Path::new(source).to_path_buf();
   let mut id = if source.is_absolute() {
     source

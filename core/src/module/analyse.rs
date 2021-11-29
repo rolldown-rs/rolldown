@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 use std::{collections::HashMap, path::Path};
 
-use swc_common::DUMMY_SP;
+
 use swc_ecma_ast::{
-  CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, FnDecl, Ident,
-  ImportDecl, Lit, ModuleDecl, ModuleItem,
+  CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, Lit, ModuleDecl,
 };
-use swc_ecma_visit::{Node, Visit, VisitAll, VisitAllWith, VisitWith};
+use swc_ecma_visit::{Node, VisitAll, VisitAllWith};
 
 use crate::{ast, ModOrExt};
 
@@ -389,7 +388,6 @@ impl VisitAll for ModuleInfoAnalyzer {
   }
 
   fn visit_call_expr(&mut self, node: &CallExpr, _parent: &dyn Node) {
-    // FIXME: It doesn't work for nested expression :(.
     add_dynamic_import(node, &mut self.dyn_imports);
   }
 }
