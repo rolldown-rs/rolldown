@@ -33,7 +33,6 @@ pub struct NormalizedOutputOptions {
 // outro: () => string | Promise<string>;
 // paths: OptionsPaths;
 // plugins: OutputPlugin[];
-// /** @deprecated Use the "renderDynamicImport" plugin hook instead. */
 // preferConst: boolean;
 // preserveModules: boolean;
 // preserveModulesRoot: string | undefined;

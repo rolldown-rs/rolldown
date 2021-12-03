@@ -1,4 +1,6 @@
-use crate::graph;
+use std::collections::HashMap;
+
+use crate::{chunk::Chunk, graph, types::Shared, Module};
 
 // #[derive(Debug, Error)]
 // pub enum BundleError {
@@ -34,4 +36,17 @@ impl Bundle {
   }
 
   pub fn generate() {}
+
+  pub fn generate_chunks() -> Vec<Chunk> {
+    let chunks = vec![];
+    let _chunk_by_module: HashMap<Shared<Module>, Chunk> = HashMap::default();
+
+    chunks
+  }
+
+  pub fn add_manual_chunks(&self) -> HashMap<Shared<Module>, String> {
+    let manual_chunk_alias_by_entry = HashMap::default();
+
+    manual_chunk_alias_by_entry
+  }
 }

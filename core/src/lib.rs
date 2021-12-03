@@ -2,12 +2,13 @@
 
 mod ast;
 mod bundle;
+mod chunk;
 mod external_module;
 mod graph;
 mod module;
 mod module_loader;
 mod statement;
-mod types;
+pub mod types;
 mod utils;
 
 pub use bundle::*;

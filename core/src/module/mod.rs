@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+  collections::{HashMap, HashSet},
+  hash::Hash,
+};
 
 use crate::module_loader::{ModuleLoader, SOURCE_MAP};
 
@@ -8,7 +11,7 @@ use self::analyse::{
 use crate::types::{shared, ModOrExt, ResolvedId, Shared};
 pub mod analyse;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Module {
   pub original_code: Option<String>,
   pub is_entry: bool,
@@ -29,9 +32,9 @@ pub struct Module {
   pub export_all_modules: Vec<ModOrExt>,
   pub is_user_defined_entry_point: bool,
   // FIXME: we should use HashSet for this
-  pub dependencies: Vec<ModOrExt>,
+  pub dependencies: HashSet<ModOrExt>,
   // FIXME: we should use HashSet for this
-  pub dynamic_dependencies: Vec<ModOrExt>,
+  pub dynamic_dependencies: HashSet<ModOrExt>,
   pub dynamic_importers: HashSet<String>,
 }
 
@@ -50,8 +53,8 @@ impl Module {
       sources: HashSet::default(),
       resolved_ids: HashMap::default(),
       is_user_defined_entry_point: false,
-      dependencies: Vec::default(),
-      dynamic_dependencies: Vec::default(),
+      dependencies: HashSet::default(),
+      dynamic_dependencies: HashSet::default(),
       importers: HashSet::default(),
       dynamic_importers: HashSet::default(),
       export_all_modules: Vec::default(),
@@ -60,6 +63,12 @@ impl Module {
       // defined: RwLock::new(HashSet::default()),
       // suggested_names: RwLock::new(HashMap::default()),
     })
+  }
+}
+
+impl Hash for Module {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    state.write(&self.id.as_bytes());
   }
 }
 
@@ -128,5 +137,12 @@ impl Module {
       let module = module_loader.modules_by_id.get(id).unwrap();
       specifier.module.replace(module.clone());
     });
+  }
+
+  pub fn get_dependencies_to_be_included(&self) -> Vec<ModOrExt> {
+    let mut relevant_dependencies: HashSet<ModOrExt> = HashSet::new();
+		let mut necessary_dependencies: HashSet<ModOrExt> = HashSet::new();
+		let mut always_checked_dependencies: HashSet<Module> = HashSet::new();
+    self.dependencies.clone().into_iter().collect()
   }
 }

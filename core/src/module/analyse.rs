@@ -1,5 +1,5 @@
-use std::collections::HashSet;
-use std::{collections::HashMap, path::Path};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use swc_ecma_ast::{
   CallExpr, Decl, DefaultDecl, EsVersion, ExportSpecifier, Expr, ExprOrSuper, Lit, ModuleDecl,
@@ -65,11 +65,9 @@ fn add_import(
 }
 
 fn add_dynamic_import(call_exp: &CallExpr, dyn_imports: &mut Vec<DynImportDesc>) {
-  println!("is_callee_import {:#?}", call_exp.callee);
   if let ExprOrSuper::Expr(exp) = &call_exp.callee {
     if let Expr::Ident(id) = exp.as_ref() {
       let is_callee_import = id.sym.to_string() == "import";
-      println!("is_callee_import {:#?}", is_callee_import);
       // FIXME: should warn about pattern like `import(...a)`
       if is_callee_import {
         if let Some(exp) = call_exp
@@ -241,7 +239,7 @@ fn add_export(
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportDesc {
   pub module: Option<ModOrExt>,
   pub module_id: String,
@@ -250,13 +248,13 @@ pub struct ImportDesc {
   pub local_name: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportDesc {
   pub identifier: Option<String>,
   pub local_name: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReExportDesc {
   pub module: Option<ModOrExt>,
   pub module_id: String,
@@ -264,7 +262,7 @@ pub struct ReExportDesc {
   pub source: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynImportDesc {
   pub argument: String,
   pub id: Option<String>,

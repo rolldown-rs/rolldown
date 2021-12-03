@@ -59,13 +59,7 @@ impl Graph {
 
   pub fn generate_module_graph(&mut self) {
     self.entry_modules = self.module_loader.borrow_mut().add_entry_modules(
-      &normalize_entry_modules(
-        self
-          .options
-          .borrow()
-          .input
-          .clone()
-      ),
+      &normalize_entry_modules(self.options.borrow().input.clone()),
       true,
     );
 

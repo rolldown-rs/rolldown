@@ -32,12 +32,11 @@ pub fn resolve_id(
 }
 
 pub fn resolve_id_via_plugins(
-  _source: &str,
-  _importer: Option<&str>,
-  _plugin_driver: &PluginDriver,
+  source: &str,
+  importer: Option<&str>,
+  plugin_driver: &PluginDriver,
 ) -> Option<ResolvedId> {
-  // TODO: call hook resolveId of plugins
-  None
+  plugin_driver.resolve_id(source, importer)
 }
 
 fn default_resolve_id(source: &str, importer: Option<&str>, _preserve_symlinks: bool) -> String {

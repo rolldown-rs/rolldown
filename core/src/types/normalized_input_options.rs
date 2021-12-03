@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-
-use crate::{
-  types::{shared, Shared},
-  utils::plugin_driver::Plugin,
-};
+use crate::utils::plugin_driver::Plugin;
 
 // (source: &str, importer: Option<&str>, is_resolved: bool)
 type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool>;
@@ -38,9 +33,8 @@ pub struct NormalizedInputOptions {
 
   // --- Options that Rolldown must need to be supported
   // treeshake: false | NormalizedTreeshakingOptions;
-
-  // By default, the context of a module – i.e., the value of this at the top level – is undefined. In rare cases you might need to change this to something else, like 'window'.
   pub plugins: Vec<Box<dyn Plugin>>,
+  // By default, the context of a module – i.e., the value of this at the top level – is undefined. In rare cases you might need to change this to something else, like 'window'.
   pub context: Option<String>,
   pub external: IsExternal,
   pub input: Vec<(Option<String>, String)>,

@@ -101,7 +101,7 @@ impl ModuleLoader {
       .map(|(source, resolved_id)| self.fetch_resolved_dependency(source, &module.id, &resolved_id))
       .for_each(|dep| {
         dep.add_importers(module.id.clone());
-        module.dependencies.push(dep);
+        module.dependencies.insert(dep);
       });
   }
 
@@ -129,7 +129,7 @@ impl ModuleLoader {
       })
       .for_each(|dep| {
         dep.add_dynamic_importers(module.id.clone());
-        module.dynamic_dependencies.push(dep);
+        module.dynamic_dependencies.insert(dep);
       });
   }
 

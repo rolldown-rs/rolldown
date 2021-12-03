@@ -1,4 +1,3 @@
-pub mod analyse;
 pub mod scope;
 
 pub mod helper {

@@ -1,8 +1,10 @@
+use std::hash::Hash;
+
 use crate::{external_module::ExternalModule, Module};
 
 use super::Shared;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModOrExt {
   Mod(Shared<Module>),
   Ext(Shared<ExternalModule>),
@@ -17,6 +19,20 @@ impl std::convert::From<Shared<ExternalModule>> for ModOrExt {
 impl std::convert::From<Shared<Module>> for ModOrExt {
   fn from(m: Shared<Module>) -> Self {
     ModOrExt::Mod(m)
+  }
+}
+
+impl Hash for ModOrExt {
+  // TODO: Is the implamentation safe?
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    match self {
+      ModOrExt::Mod(m) => {
+        state.write(&m.borrow().id.as_bytes());
+      }
+      ModOrExt::Ext(m) => {
+        state.write(&m.borrow().id.as_bytes());
+      }
+    }
   }
 }
 
