@@ -523,6 +523,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nodejs_path"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a968fe8ff60b61fada6b377713f56b3f92e7c884526826cdef0128ba2ae1b511"
+
+[[package]]
 name = "num-bigint"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -943,6 +949,7 @@ dependencies = [
  "log",
  "napi",
  "napi-derive",
+ "nodejs_path",
  "once_cell",
  "path-absolutize",
  "rayon",

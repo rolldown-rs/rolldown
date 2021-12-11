@@ -55,26 +55,40 @@ pub fn get_chunk_assignments(
   chunk_definitions
 }
 
-fn analyze_module_graph(entry_modules: &[Shared<Module>]) {
-  let dynamic_entry_modules = HashSet::new();
+fn analyze_module_graph(
+  entry_modules: &[Shared<Module>],
+) -> (DependentModuleMap, HashSet<Shared<Module>>) {
+  // let dynamic_entry_modules = HashSet::new();
   let dependent_entry_points_by_module: DependentModuleMap = HashMap::default();
   let entries_to_handle = entry_modules
     .iter()
     .map(|m| m.clone())
     .collect::<HashSet<Shared<Module>>>();
-  entries_to_handle.iter().for_each(|current_entry| {
-    let mut modules_to_handle = HashSet::new();
-    let mut rest_modules_to_handle = HashSet::new();
-    rest_modules_to_handle.insert(current_entry.clone());
-    while rest_modules_to_handle.len() > 0 {
-      rest_modules_to_handle.into_iter().for_each(|module| {
-        dependent_entry_points_by_module
-          .entry(module.clone())
-          .or_insert(HashSet::new())
-          .insert(current_entry.clone());
-      });
-    }
-  });
+  // entries_to_handle.iter().for_each(|current_entry| {
+  //   let mut modules_to_handle = HashSet::new();
+  //   let mut rest_modules_to_handle = vec![current_entry.clone()];
+  //   while rest_modules_to_handle.len() > 0 {
+  //     let module = rest_modules_to_handle.pop().unwrap();
+  //     dependent_entry_points_by_module
+  //       .entry(module.clone())
+  //       .or_insert(HashSet::new())
+  //       .insert(current_entry.clone());
+  //     module
+  //       .borrow()
+  //       .get_dependencies_to_be_included()
+  //       .into_iter()
+  //       .for_each(|dep| {
+  //         if let ModOrExt::Mod(dep) = dep {
+  //           if !modules_to_handle.contains(&dep) {
+  //             modules_to_handle.insert(dep.clone());
+  //             rest_modules_to_handle.push(dep);
+  //           }
+  //         }
+  //       })
+  //   }
+  //   modules_to_handle.into_iter().for_each(|module| {})
+  // });
+  todo!()
 }
 
 fn add_static_dependencies_to_manual_chunk(

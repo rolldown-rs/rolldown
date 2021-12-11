@@ -115,9 +115,7 @@ impl ModuleLoader {
       .flat_map(|(dynamic_import, resolved_id)| {
         if let Some(resolved_id) = resolved_id {
           let dep = self.fetch_resolved_dependency(
-            &utils::path::relative_id(resolved_id.id.clone().into())
-              .to_str()
-              .unwrap(),
+            &utils::path::relative_id(resolved_id.id.clone().into()),
             &module.id,
             resolved_id,
           );

@@ -5,8 +5,6 @@ extern crate napi_derive;
 // #[macro_use]
 extern crate serde_derive;
 
-
-
 // #[cfg(all(
 //   not(debug_assertions),
 //   not(all(target_os = "windows", target_arch = "aarch64")),
