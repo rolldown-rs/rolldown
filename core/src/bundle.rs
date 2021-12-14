@@ -35,9 +35,12 @@ impl Bundle {
     Self { graph }
   }
 
-  pub fn generate() {}
+  pub fn generate(&self) {
 
-  pub fn generate_chunks() -> Vec<Chunk> {
+    let chunks = self.generate_chunks();
+  }
+
+  pub fn generate_chunks(&self) -> Vec<Chunk> {
     let chunks = vec![];
     let _chunk_by_module: HashMap<Shared<Module>, Chunk> = HashMap::default();
 

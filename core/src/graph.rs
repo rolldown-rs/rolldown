@@ -6,24 +6,6 @@ use crate::{
   types::{ModOrExt, UnresolvedModule},
 };
 
-// #[derive(Debug, Error)]
-// pub enum GraphError {
-//   #[error("Entry [{0}] not found")]
-//   EntryNotFound(String),
-//   #[error("Bundle doesn't have any entry")]
-//   NoEntry,
-//   #[error("{0}")]
-//   IoError(io::Error),
-//   #[error("Parse module failed")]
-//   ParseModuleError,
-// }
-
-// impl From<io::Error> for GraphError {
-//   fn from(err: io::Error) -> Self {
-//     Self::IoError(err)
-//   }
-// }
-
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Graph {
@@ -36,7 +18,6 @@ pub struct Graph {
 }
 
 impl Graph {
-  // build a module using dependency relationship
   pub fn new(options: NormalizedInputOptions) -> Self {
     env_logger::init();
 
@@ -57,7 +38,9 @@ impl Graph {
     graph
   }
 
+  // build dependency graph via entry modules.
   pub fn generate_module_graph(&mut self) {
+
     self.entry_modules = self.module_loader.borrow_mut().add_entry_modules(
       &normalize_entry_modules(self.options.borrow().input.clone()),
       true,
@@ -78,6 +61,7 @@ impl Graph {
       });
   }
 
+  // start build phrase
   pub fn build(&mut self) {
     self.plugin_driver.borrow().build_start();
 
@@ -88,9 +72,14 @@ impl Graph {
     self.include_statements();
   }
 
-  fn include_statements(&self) {}
+  fn include_statements(&self) {
+    // TODO: collect statements via entry modules  and tree-shaking.
+  }
 
-  fn sort_modules(&self) {}
+  fn sort_modules(&self) -> (Vec<Vec<String>>, Vec<Shared<Module>>) {
+    // TODO: sort modules and analyze cycle imports
+    todo!()
+  }
 }
 
 pub fn normalize_entry_modules(

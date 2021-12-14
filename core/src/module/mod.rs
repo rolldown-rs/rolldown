@@ -80,7 +80,7 @@ impl Module {
     self.imports = module_info.imports;
     self.exports = module_info.exports;
     self.export_all_sources = module_info.export_all_sources;
-    self.dynamic_imports = module_info.dyn_imports;
+    self.dynamic_imports = module_info.dynamic_imports;
     self.sources = module_info.sources;
   }
 

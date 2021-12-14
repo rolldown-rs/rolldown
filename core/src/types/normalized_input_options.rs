@@ -5,7 +5,7 @@ type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool>;
 
 // type ModuleContext = Box<dyn Fn(&str) -> &str>;
 
-type EntryAlias = String;
+// type EntryAlias = String;
 
 pub struct NormalizedInputOptions {
   // --- Options that Rolldown doesn't need to be supported
@@ -37,6 +37,7 @@ pub struct NormalizedInputOptions {
   // By default, the context of a module – i.e., the value of this at the top level – is undefined. In rare cases you might need to change this to something else, like 'window'.
   pub context: Option<String>,
   pub external: IsExternal,
+  // (alias: Option<String>, path: String)
   pub input: Vec<(Option<String>, String)>,
   pub preserve_symlinks: bool,
 }

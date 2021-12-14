@@ -348,17 +348,17 @@ pub(crate) fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
   })
 }
 
-pub struct ModuleInfoAnalyzer {
+pub struct ModuleSourceAnalyzer {
   pub module_id: String,
   pub imports: HashMap<String, ImportDesc>,
   pub exports: HashMap<String, ExportDesc>,
   pub re_exports: HashMap<String, ReExportDesc>,
   pub export_all_sources: HashSet<String>,
-  pub dyn_imports: Vec<DynImportDesc>,
+  pub dynamic_imports: Vec<DynImportDesc>,
   pub sources: HashSet<String>,
 }
 
-impl ModuleInfoAnalyzer {
+impl ModuleSourceAnalyzer {
   fn new(module_id: String) -> Self {
     Self {
       module_id,
@@ -366,13 +366,13 @@ impl ModuleInfoAnalyzer {
       exports: HashMap::default(),
       re_exports: HashMap::default(),
       export_all_sources: HashSet::default(),
-      dyn_imports: Vec::default(),
+      dynamic_imports: Vec::default(),
       sources: HashSet::default(),
     }
   }
 }
 
-impl VisitAll for ModuleInfoAnalyzer {
+impl VisitAll for ModuleSourceAnalyzer {
   fn visit_module_decl(&mut self, node: &ModuleDecl, _parent: &dyn Node) {
     add_import(node, &mut self.imports, &mut self.sources, &self.module_id);
     add_export(
@@ -386,15 +386,15 @@ impl VisitAll for ModuleInfoAnalyzer {
   }
 
   fn visit_call_expr(&mut self, node: &CallExpr, _parent: &dyn Node) {
-    add_dynamic_import(node, &mut self.dyn_imports);
+    add_dynamic_import(node, &mut self.dynamic_imports);
   }
 }
 
 pub fn get_module_info_from_ast(
   ast: &swc_ecma_ast::Module,
   module_id: String,
-) -> ModuleInfoAnalyzer {
-  let mut m = ModuleInfoAnalyzer::new(module_id);
+) -> ModuleSourceAnalyzer {
+  let mut m = ModuleSourceAnalyzer::new(module_id);
   ast.visit_all_children_with(&mut m);
   m
 }
