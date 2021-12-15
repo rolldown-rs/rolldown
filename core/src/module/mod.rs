@@ -140,9 +140,9 @@ impl Module {
   }
 
   pub fn get_dependencies_to_be_included(&self) -> Vec<ModOrExt> {
-    let mut relevant_dependencies: HashSet<ModOrExt> = HashSet::new();
-    let mut necessary_dependencies: HashSet<ModOrExt> = HashSet::new();
-    let mut always_checked_dependencies: HashSet<Module> = HashSet::new();
+    let _relevant_dependencies: HashSet<ModOrExt> = HashSet::new();
+    let _necessary_dependencies: HashSet<ModOrExt> = HashSet::new();
+    let _always_checked_dependencies: HashSet<Module> = HashSet::new();
     self.dependencies.clone().into_iter().collect()
   }
 }

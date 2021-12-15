@@ -1,9 +1,9 @@
 
-use std::sync::RwLock;
 
-use napi::Ref;
 
-use crate::{Module, types::{shared, NormalizedInputOptions, ResolveIdResult, Shared}};
+
+
+use crate::{types::{shared, NormalizedInputOptions, ResolveIdResult, Shared}};
 
 pub struct PluginDriver {
   pub options: Shared<NormalizedInputOptions>,
@@ -91,7 +91,7 @@ pub trait Plugin {
   fn get_name(&self) -> &'static str;
 
   #[inline]
-  fn options(&self, options: &NormalizedInputOptions) -> Option<NormalizedInputOptions> {
+  fn options(&self, _options: &NormalizedInputOptions) -> Option<NormalizedInputOptions> {
     // async, sequential
     None
   }

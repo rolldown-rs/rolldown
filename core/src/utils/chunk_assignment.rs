@@ -50,7 +50,7 @@ pub fn get_chunk_assignments(
       });
     });
 
-  let assigned_entry_points_by_module: DependentModuleMap = HashMap::default();
+  let _assigned_entry_points_by_module: DependentModuleMap = HashMap::default();
 
   chunk_definitions
 }
@@ -59,8 +59,8 @@ fn analyze_module_graph(
   entry_modules: &[Shared<Module>],
 ) -> (DependentModuleMap, HashSet<Shared<Module>>) {
   // let dynamic_entry_modules = HashSet::new();
-  let dependent_entry_points_by_module: DependentModuleMap = HashMap::default();
-  let entries_to_handle = entry_modules
+  let _dependent_entry_points_by_module: DependentModuleMap = HashMap::default();
+  let _entries_to_handle = entry_modules
     .iter()
     .map(|m| m.clone())
     .collect::<HashSet<Shared<Module>>>();

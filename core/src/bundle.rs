@@ -37,7 +37,7 @@ impl Bundle {
 
   pub fn generate(&self) {
 
-    let chunks = self.generate_chunks();
+    let _chunks = self.generate_chunks();
   }
 
   pub fn generate_chunks(&self) -> Vec<Chunk> {

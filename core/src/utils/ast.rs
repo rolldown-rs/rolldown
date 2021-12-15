@@ -1,7 +1,4 @@
-pub mod scope;
-
-pub mod helper {
-  use swc_ecma_ast::Pat;
+use swc_ecma_ast::Pat;
   pub fn collect_names_of_pat(pat: &Pat) -> Vec<String> {
     match pat {
       // export const a = 1;
@@ -17,4 +14,3 @@ pub mod helper {
       _ => vec![],
     }
   }
-}

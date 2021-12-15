@@ -55,21 +55,6 @@ impl Hash for Shared<Module> {
     state.write(self.0.borrow().id.as_bytes());
   }
 }
-
-// impl <T: std::fmt::Display> std::fmt::Display for Shared<T> {
-//   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//       write!(f, "{}", self.deref())
-//   }
-// }
-
-// impl <T: std::fmt::Debug> std::fmt::Debug for Shared<T> {
-//   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//       write!(f, "{:?}", self.deref())
-//   }
-// }
-
-// --- ResolvedId
-
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ResolvedId {
   pub id: String,

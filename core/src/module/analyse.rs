@@ -6,7 +6,7 @@ use swc_ecma_ast::{
 };
 use swc_ecma_visit::{Node, VisitAll, VisitAllWith};
 
-use crate::ast;
+use crate::{utils};
 use crate::types::ModOrExt;
 
 use swc_common::sync::Lrc;
@@ -215,7 +215,7 @@ fn add_export(
           // export var { foo, bar } = ...
           // export var foo = 1, bar = 2;
           node.decls.iter().for_each(|decl| {
-            ast::helper::collect_names_of_pat(&decl.name)
+            utils::ast::collect_names_of_pat(&decl.name)
               .into_iter()
               .for_each(|local_name| {
                 exports.insert(

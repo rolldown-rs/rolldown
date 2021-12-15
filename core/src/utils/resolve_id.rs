@@ -40,7 +40,7 @@ pub fn resolve_id_via_plugins(
 }
 
 fn default_resolve_id(source: &str, importer: Option<&str>, _preserve_symlinks: bool) -> String {
-  let mut id = if nodejs_path::is_absolute(source) {
+  let id = if nodejs_path::is_absolute(source) {
     source.to_owned()
   } else if importer.is_none() {
     nodejs_path::resolve!(&source)
@@ -54,8 +54,8 @@ fn default_resolve_id(source: &str, importer: Option<&str>, _preserve_symlinks: 
 }
 
 
-fn add_js_extension_if_necessary(mut file: String, preserveSymlinks: bool) -> String {
-  // FIXME: The implement isn't right.
+fn add_js_extension_if_necessary(mut file: String, _preserve_symlinks: bool) -> String {
+  // FIXME: The implement isn't right. The correct implement is below there.
   if nodejs_path::extname(&file) != ".js" {
     file.push_str(".js");
   }
