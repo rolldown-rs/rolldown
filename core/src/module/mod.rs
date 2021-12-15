@@ -3,6 +3,8 @@ use std::{
   hash::Hash,
 };
 
+use log::debug;
+
 use crate::module_loader::{ModuleLoader, SOURCE_MAP};
 
 use self::analyse::{
@@ -87,6 +89,9 @@ impl Module {
   pub fn update_options(&self) {}
 
   pub fn link_imports(&mut self, module_loader: &ModuleLoader) {
+    debug!("link_imports for module {}", self.id);
+    debug!("self export_all_sources {:#?}", self.export_all_sources);
+    debug!("self export_all {:#?}", self.exports_all);
     self.add_modules_to_import_descriptions(module_loader);
     self.add_modules_to_re_export_descriptions(module_loader);
 
@@ -94,8 +99,11 @@ impl Module {
       if name != "default" {
         self.exports_all.insert(name.clone(), self.id.clone());
       }
+    });
 
-      let mut external_modules = vec![];
+    let mut external_modules = vec![];
+      debug!("self export_all_sources {:#?} for module {}", self.export_all_sources, self.id);
+      debug!("self export_all {:#?}", self.exports_all);
       self.export_all_sources.iter().for_each(|source| {
         let module_id = &self.resolved_ids.get(source).unwrap().id;
         let module = module_loader.modules_by_id.get(module_id).unwrap();
@@ -105,11 +113,13 @@ impl Module {
           }
           ModOrExt::Mod(module) => {
             self.export_all_modules.push(module.clone().into());
-            module.borrow().exports_all.keys().for_each(|name| {
+            let module = &module.borrow();
+            module.exports_all.keys().for_each(|name| {
+              debug!("module {:#?}", self.exports_all);
               if self.exports_all.contains_key(name) {
                 panic!("NamespaceConflict")
               }
-              self.exports_all.insert(name.clone(), name.clone());
+              self.exports_all.insert(name.clone(), module.exports_all.get(name).as_ref().unwrap().to_string());
             })
           }
         }
@@ -120,7 +130,6 @@ impl Module {
           .map(|ext| ext.clone().into())
           .collect(),
       );
-    })
   }
 
   fn add_modules_to_import_descriptions(&mut self, module_loader: &ModuleLoader) {

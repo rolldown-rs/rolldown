@@ -67,7 +67,7 @@ impl Graph {
 
     self.generate_module_graph();
 
-    self.sort_modules();
+    // self.sort_modules();
 
     self.include_statements();
   }

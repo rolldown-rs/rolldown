@@ -233,6 +233,7 @@ fn add_export(
     }
     ModuleDecl::ExportAll(node) => {
       // export * from './other'
+      sources.insert(node.src.value.to_string());
       export_all_sources.insert(node.src.value.to_string());
     }
     _ => {}
