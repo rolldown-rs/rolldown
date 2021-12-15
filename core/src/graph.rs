@@ -63,7 +63,7 @@ impl Graph {
 
   // start build phrase
   pub fn build(&mut self) {
-    self.plugin_driver.borrow().build_start();
+    self.plugin_driver.borrow().build_start(&self.options.borrow());
 
     self.generate_module_graph();
 

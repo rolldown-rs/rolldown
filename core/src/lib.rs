@@ -17,3 +17,6 @@ pub use module::*;
 pub use statement::*;
 
 pub use swc_common;
+
+
+pub mod plugin;

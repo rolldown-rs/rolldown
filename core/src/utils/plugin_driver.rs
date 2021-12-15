@@ -1,4 +1,9 @@
-use crate::types::{shared, NormalizedInputOptions, ResolveIdResult, Shared};
+
+use std::sync::RwLock;
+
+use napi::Ref;
+
+use crate::{Module, types::{shared, NormalizedInputOptions, ResolveIdResult, Shared}};
 
 pub struct PluginDriver {
   pub options: Shared<NormalizedInputOptions>,
@@ -19,9 +24,9 @@ impl PluginDriver {
 impl PluginDriver {
   pub fn options(&self) {}
 
-  pub fn build_start(&self) {
+  pub fn build_start(&self, options: &NormalizedInputOptions) {
     // TODO: should be parallel
-    self.plugins.iter().for_each(|plugin| plugin.build_start())
+    self.plugins.iter().for_each(|plugin| plugin.build_start(options))
   }
 
   #[inline]
@@ -76,26 +81,35 @@ impl PluginDriver {
 
   pub fn build_end(&self) {
     // TODO: should be parallel
-    self.plugins.iter().for_each(|plugin| plugin.build_end())
+    self.plugins.iter().for_each(|plugin| plugin.build_end(None))
   }
 }
 
 pub trait Plugin {
+  // Align to https://rollupjs.org/guide/en/#build-hooks
+
   fn get_name(&self) -> &'static str;
 
   #[inline]
-  fn options(&self) {}
+  fn options(&self, options: &NormalizedInputOptions) -> Option<NormalizedInputOptions> {
+    // async, sequential
+    None
+  }
 
   #[inline]
-  fn build_start(&self) {}
+  fn build_start(&self, _options: &NormalizedInputOptions) {
+    //  async, parallel
+  }
 
   #[inline]
   fn resolve_id(&self, _source: &str, _importer: Option<&str>) -> ResolveIdResult {
+    //  async, first
     None
   }
 
   #[inline]
   fn load(&self, _id: &str) -> Option<String> {
+    // async, first
     // TODO: call hook load of plugins
     None
   }
@@ -106,13 +120,18 @@ pub trait Plugin {
   }
 
   #[inline]
-  fn module_parsed(&self) {}
+  fn module_parsed(&self) {
+    // async, parallel
+  }
 
   #[inline]
   fn resolve_dynamic_import(&self, _specifier: &str, _importer: &str) -> ResolveIdResult {
+    //  async, first
     None
   }
 
   #[inline]
-  fn build_end(&self) {}
+  fn build_end(&self, _err: Option<Box<dyn std::error::Error>>) {
+    // async, parallel
+  }
 }
