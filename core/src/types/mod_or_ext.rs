@@ -64,6 +64,7 @@ impl ModOrExt {
   }
 
   pub fn add_importers(&self, id: String) {
+    // FIXME: Something panic here when having circular imports.
     match self {
       ModOrExt::Mod(m) => {
         m.borrow_mut().importers.insert(id);

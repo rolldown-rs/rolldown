@@ -1,3 +1,4 @@
 
+import {  add, sub } from './calc'
 
-console.log(console.log(import('./calc')), console.log(import('path')))
+import { } from './foo'

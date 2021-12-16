@@ -8,5 +8,5 @@ fn main() {
   let mut graph = Graph::new(o);
   graph.build();
 
-  println!("entry_modules {:#?}", graph.entry_modules)
+  // println!("entry_modules {:#?}", graph.entry_modules)
 }
