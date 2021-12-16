@@ -7,6 +7,7 @@ pub struct ExternalModule {
   pub id: String,
   pub importers: BTreeSet<String>,
   pub dynamic_importers: BTreeSet<String>,
+  pub exec_index: usize,
 }
 impl ExternalModule {
   pub fn new(id: String) -> Shared<Self> {
@@ -14,6 +15,7 @@ impl ExternalModule {
       id,
       importers: BTreeSet::default(),
       dynamic_importers: BTreeSet::default(),
+      exec_index: usize::MAX,
     })
   }
 }

@@ -3,6 +3,7 @@ pub mod plugin_driver;
 pub mod resolve_id;
 pub mod transform;
 pub mod ast;
+pub mod execution_order;
 
 pub mod path {
   pub fn relative_id(id: String) -> String {

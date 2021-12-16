@@ -85,4 +85,15 @@ impl ModOrExt {
       }
     }
   }
+
+  pub fn set_exec_index(&self, exec_index: usize) {
+    match self {
+      ModOrExt::Mod(m) => {
+        m.borrow_mut().exec_index = exec_index;
+      }
+      ModOrExt::Ext(m) => {
+        m.borrow_mut().exec_index = exec_index;
+      }
+    }
+  }
 }

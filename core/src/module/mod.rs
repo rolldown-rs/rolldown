@@ -38,6 +38,8 @@ pub struct Module {
   // FIXME: we should use HashSet for this
   pub dynamic_dependencies: HashSet<ModOrExt>,
   pub dynamic_importers: HashSet<String>,
+  pub cycles: HashSet<String>,
+  pub exec_index: usize,
 }
 
 impl Module {
@@ -60,6 +62,8 @@ impl Module {
       importers: HashSet::default(),
       dynamic_importers: HashSet::default(),
       export_all_modules: Vec::default(),
+      cycles: HashSet::default(),
+      exec_index: usize::MAX,
       // definitions,
       // modifications,
       // defined: RwLock::new(HashSet::default()),
