@@ -325,8 +325,7 @@ pub fn parse_file(
   parser.parse_module()
 }
 
-#[cfg(test)]
-pub(crate) fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
+pub fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
   use swc_common::BytePos;
   let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, None);
   let lexer = Lexer::new(

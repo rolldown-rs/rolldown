@@ -3,7 +3,7 @@ use rolldown::{types::NormalizedInputOptions, Graph};
 fn main() {
   let o = NormalizedInputOptions {
     input: vec![(None, "./tests/fixtures/dynamic-import/main.js".to_owned())],
-    ..NormalizedInputOptions::default()
+    ..Default::default()
   };
   let mut graph = Graph::new(o);
   graph.build();
