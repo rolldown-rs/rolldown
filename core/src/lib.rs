@@ -2,6 +2,7 @@ pub mod bundle;
 pub mod chunk;
 pub mod external_module;
 pub mod graph;
+// pub mod linker;
 pub mod module;
 pub mod scanner;
 pub mod statement;

@@ -206,6 +206,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "disjoint-sets"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ccbbca7d6a247007ca2535c616d4bb4a5fcad176ef0218671f96b88c52c3d34"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -977,6 +983,7 @@ version = "0.0.1"
 dependencies = [
  "ahash",
  "anyhow",
+ "disjoint-sets",
  "env_logger",
  "log",
  "napi",

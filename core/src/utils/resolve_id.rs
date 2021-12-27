@@ -14,7 +14,7 @@ pub fn resolve_id(
   preserve_symlinks: bool,
   // plugin_driver: &PluginDriver,
 ) -> ResolvedId {
-  let res = if !importer.is_none() && !is_absolute(source) && !source.starts_with(".") {
+  let res = if importer.is_some() && !is_absolute(source) && !source.starts_with(".") {
     ResolvedId::new(source.to_owned(), true)
   } else {
     ResolvedId::new(

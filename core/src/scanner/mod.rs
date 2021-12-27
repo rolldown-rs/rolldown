@@ -25,6 +25,7 @@ use rel::{DynImportDesc, ExportDesc, ImportDesc, ReExportDesc};
 // Declare symbols
 // Bind symbols. We use Hoister to handle varible hoisting situation.
 // TODO: Fold constants
+#[derive(Clone, PartialEq, Eq)]
 pub struct Scanner {
   // scope
   pub stacks: Vec<Scope>,
@@ -68,7 +69,7 @@ impl Scanner {
         VarDeclKind::Const => "const",
         VarDeclKind::Var => "var",
       },
-      &id.sym.to_string()
+      id.sym.to_string()
     );
 
     let cur_mark = self.get_cur_scope().mark;

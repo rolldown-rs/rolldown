@@ -1,5 +1,5 @@
 use swc_atoms::JsWord;
-
+use swc_common::{Mark, SyntaxContext};
 use swc_ecma_ast::{
   CallExpr, Decl, DefaultDecl, ExportSpecifier, Expr, ExprOrSuper, Lit, ModuleDecl,
 };
@@ -23,9 +23,9 @@ pub struct ExportDesc {
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ReExportDesc {
-  // name in importer
+  // name in importee
   pub name: JsWord,
-  // orignal defined name
+  // locally defined name
   pub local_name: JsWord,
   pub source: JsWord,
 }
@@ -133,7 +133,7 @@ impl Scanner {
       }
       ModuleDecl::ExportDefaultExpr(node) => {
         // export default foo;
-        let identifier = match node.expr.as_ref() {
+        let identifier: Option<JsWord> = match node.expr.as_ref() {
           Expr::Ident(id) => Some(id.sym.clone()),
           _ => None,
         };
@@ -162,18 +162,18 @@ impl Scanner {
                   ReExportDesc {
                     local_name: s.orig.sym.clone(),
                     source,
-                    name,
+                    name: name.clone(),
                   },
                 );
               } else {
                 // export { foo, bar, baz }
                 let local_name = s.orig.sym.clone();
-                let exported_name = s
+                let exported_name: JsWord = s
                   .exported
                   .as_ref()
                   .map_or(s.orig.sym.clone(), |id| id.sym.clone());
                 self.exports.insert(
-                  exported_name,
+                  exported_name.clone(),
                   ExportDesc {
                     identifier: None,
                     local_name,
@@ -191,7 +191,7 @@ impl Scanner {
                 ReExportDesc {
                   local_name: "*".into(),
                   source,
-                  name,
+                  name: name.clone(),
                 },
               );
             }
