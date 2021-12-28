@@ -7,7 +7,7 @@ use super::Scanner;
 
 impl Scanner {
   pub fn get_cur_scope(&self) -> &Scope {
-    self.stacks.get(self.stacks.len() - 1).unwrap()
+    self.stacks.last().unwrap()
   }
 
   pub fn into_cur_scope(self) -> Scope {
@@ -15,8 +15,7 @@ impl Scanner {
   }
 
   pub fn get_cur_scope_mut(&mut self) -> &mut Scope {
-    let len = self.stacks.len();
-    self.stacks.get_mut(len - 1).unwrap()
+    self.stacks.last_mut().unwrap()
   }
 
   pub fn push_scope(&mut self, kind: ScopeKind) {

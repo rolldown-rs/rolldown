@@ -73,7 +73,7 @@ impl Scanner {
 
     let cur_mark = self.get_cur_scope().mark;
 
-    for scope in &mut self.stacks.iter_mut() {
+    for scope in &mut self.stacks.iter_mut().rev() {
       if is_var_decl {
         if scope.kind == ScopeKind::Fn {
           let ctxt = SyntaxContext::empty().apply_mark(Mark::fresh(cur_mark));
@@ -84,6 +84,7 @@ impl Scanner {
         let ctxt = SyntaxContext::empty().apply_mark(Mark::fresh(cur_mark));
         id.span.ctxt = ctxt;
         scope.declared_symbols.insert(id.sym.clone(), ctxt);
+        break;
       }
     }
 
@@ -97,7 +98,7 @@ impl Scanner {
   }
 
   pub fn resolve_ctxt_for_ident(&mut self, ident: &mut Ident) {
-    for scope in &mut self.stacks {
+    for scope in &mut self.stacks.iter_mut().rev() {
       if let Some(ctxt) = scope.declared_symbols.get(&ident.sym) {
         ident.span.ctxt = ctxt.clone();
         break;
