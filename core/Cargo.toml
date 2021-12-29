@@ -6,8 +6,8 @@ version = "0.0.1"
 
 [[example]]
 bench = false
-name = "bundle"
-path = "examples/bundle.rs"
+name = "build"
+path = "examples/build.rs"
 test = false
 
 [dependencies.swc_common]

@@ -1,7 +1,4 @@
-use std::{
-  fmt::Debug,
-  hash::Hash,
-};
+use std::{fmt::Debug, hash::Hash};
 
 use swc_ecma_ast::*;
 

@@ -210,7 +210,6 @@ impl VisitMut for Scanner {
   }
 
   fn visit_mut_catch_clause(&mut self, c: &mut CatchClause) {
-
     self.push_scope(ScopeKind::Block);
 
     self.ident_type = IdentType::Binding(VarDeclKind::Var);
@@ -247,7 +246,6 @@ impl VisitMut for Scanner {
 
   fn visit_mut_class_method(&mut self, m: &mut ClassMethod) {
     m.key.visit_mut_with(self);
-
 
     self.push_scope(ScopeKind::Fn);
 
@@ -325,15 +323,14 @@ impl VisitMut for Scanner {
   }
 
   fn visit_mut_fn_decl(&mut self, node: &mut FnDecl) {
-      self.push_scope(ScopeKind::Fn);
+    self.push_scope(ScopeKind::Fn);
 
-      node.function.visit_mut_with(self);
+    node.function.visit_mut_with(self);
 
-      self.pop_scope();
+    self.pop_scope();
   }
 
   fn visit_mut_fn_expr(&mut self, e: &mut FnExpr) {
-
     self.push_scope(ScopeKind::Fn);
 
     if let Some(ident) = &mut e.ident {
@@ -356,7 +353,6 @@ impl VisitMut for Scanner {
   }
 
   fn visit_mut_for_of_stmt(&mut self, n: &mut ForOfStmt) {
-
     self.push_scope(ScopeKind::Block);
 
     n.left.visit_mut_with(self);
@@ -386,7 +382,6 @@ impl VisitMut for Scanner {
 
     self.ident_type = IdentType::Binding(VarDeclKind::Var);
     f.params.visit_mut_with(self);
-
 
     self.ident_type = IdentType::Ref;
     match &mut f.body {
@@ -487,16 +482,13 @@ impl VisitMut for Scanner {
   }
 
   fn visit_mut_var_decl(&mut self, decl: &mut VarDecl) {
-
     let ident_type = self.ident_type;
     self.ident_type = IdentType::Binding(decl.kind.clone());
     decl.decls.visit_mut_with(self);
     self.ident_type = ident_type;
-
   }
 
   fn visit_mut_var_declarator(&mut self, decl: &mut VarDeclarator) {
-
     decl.name.visit_mut_with(self);
 
     let old_type = self.ident_type;

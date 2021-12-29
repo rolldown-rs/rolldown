@@ -1,6 +1,5 @@
 use crate::{chunk::Chunk, graph};
 
-
 #[non_exhaustive]
 pub struct Bundle {
   pub graph_container: graph::GraphContainer,
@@ -8,7 +7,9 @@ pub struct Bundle {
 
 impl Bundle {
   pub fn new(graph: graph::GraphContainer) -> Self {
-    Self { graph_container: graph }
+    Self {
+      graph_container: graph,
+    }
   }
 
   pub fn generate(&mut self) -> String {
@@ -18,5 +19,4 @@ impl Bundle {
 
     chunk.render(&mut self.graph_container.graph)
   }
-
 }

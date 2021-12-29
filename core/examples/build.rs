@@ -1,6 +1,4 @@
-
 use rolldown::graph::GraphContainer;
-
 
 fn main() {
   // let mut graph = GraphContainer::new("./tests/fixtures/preact/index.js".to_owned());

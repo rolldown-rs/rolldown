@@ -1,5 +1,3 @@
-
-
 use rolldown::{bundle::Bundle, graph::GraphContainer};
 
 fn main() {
@@ -12,8 +10,6 @@ fn main() {
   graph.build();
 
   let mut bundle = Bundle::new(graph);
-  
-  std::fs::write("output.js", bundle.generate()).unwrap();
 
-  
+  std::fs::write("output.js", bundle.generate()).unwrap();
 }

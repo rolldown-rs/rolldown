@@ -22,21 +22,25 @@ impl<'me> VisitMut for Renamer<'me> {
   }
 
   fn visit_mut_object_lit(&mut self, node: &mut ObjectLit) {
-    node.props.iter_mut().for_each(|prop_or_spread| {
-      match prop_or_spread {
+    node
+      .props
+      .iter_mut()
+      .for_each(|prop_or_spread| match prop_or_spread {
         PropOrSpread::Prop(prop) => {
           if prop.is_shorthand() {
             if let Prop::Shorthand(ident) = prop.as_mut() {
               let mut key = ident.clone();
               key.span.ctxt = SyntaxContext::empty();
-              let replacement = Box::new(Prop::KeyValue(KeyValueProp {  key: PropName::Ident(key), value: Box::new(Expr::Ident(ident.clone())) }));
+              let replacement = Box::new(Prop::KeyValue(KeyValueProp {
+                key: PropName::Ident(key),
+                value: Box::new(Expr::Ident(ident.clone())),
+              }));
               *prop = replacement;
             }
           }
         }
         _ => {}
-      }
-    });
+      });
     node.visit_mut_children_with(self);
   }
 }

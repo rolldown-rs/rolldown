@@ -1,6 +1,3 @@
 use super::Scanner;
 
-
-impl Scanner {
-  
-}
+impl Scanner {}

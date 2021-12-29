@@ -1,4 +1,4 @@
-use std::{hash::Hash};
+use std::hash::Hash;
 
 use crate::graph::DepNode;
 

@@ -1,6 +1,4 @@
-use std::{
-  hash::Hash,
-};
+use std::hash::Hash;
 
 mod normalized_input_options;
 pub use normalized_input_options::*;

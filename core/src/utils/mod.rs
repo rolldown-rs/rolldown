@@ -6,7 +6,10 @@ pub mod resolve_id;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use swc_ecma_ast::{BindingIdent, CallExpr, ClassDecl, Decl, DefaultDecl, EmptyStmt, EsVersion, ExportSpecifier, Expr, ExprOrSuper, FnDecl, Ident, Lit, ModuleDecl, ModuleItem, Pat, Stmt, VarDecl, VarDeclarator};
+use swc_ecma_ast::{
+  BindingIdent, CallExpr, ClassDecl, Decl, DefaultDecl, EmptyStmt, EsVersion, ExportSpecifier,
+  Expr, ExprOrSuper, FnDecl, Ident, Lit, ModuleDecl, ModuleItem, Pat, Stmt, VarDecl, VarDeclarator,
+};
 use swc_ecma_visit::{Node, VisitAll};
 
 use swc_common::sync::Lrc;
@@ -16,7 +19,6 @@ use swc_common::{
 };
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 use swc_ecma_parser::{EsConfig, TsConfig};
-
 
 pub mod path {
   pub fn relative_id(id: String) -> String {
@@ -106,16 +108,13 @@ pub fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
   })
 }
 
-
 use swc_common::DUMMY_SP;
-
-
 
 pub fn fold_export_decl_to_decl(module_item: &mut ModuleItem) {
   if let ModuleItem::ModuleDecl(module_decl) = &module_item {
     *module_item = match module_decl {
       // remove export { foo, baz }
-      // FIXME: this will also remove `export * as foo from './foo'`. How we handle this? 
+      // FIXME: this will also remove `export * as foo from './foo'`. How we handle this?
       ModuleDecl::ExportNamed(_) => ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP })),
       // remove `export` from `export class Foo {...}`
       ModuleDecl::ExportDecl(export_decl) => ModuleItem::Stmt(Stmt::Decl(export_decl.decl.clone())),

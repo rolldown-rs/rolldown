@@ -2,11 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
   graph::{DepGraph, DepNode},
-  statement::{Statement},
+  statement::Statement,
 };
 use log::debug;
 
-use petgraph::{graph::NodeIndex};
+use petgraph::graph::NodeIndex;
 use rayon::prelude::*;
 use swc_atoms::JsWord;
 use swc_ecma_ast::EsVersion;

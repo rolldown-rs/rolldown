@@ -1,23 +1,17 @@
-use crate::scanner::Scanner;
 use crate::scanner::rel::ExportDesc;
 use crate::scanner::scope::{Scope, ScopeKind};
+use crate::scanner::Scanner;
 use crate::utils::parse_file;
 use crate::{
   graph::{DepNode, SOURCE_MAP},
-  statement::{
-    Statement,
-  },
+  statement::Statement,
 };
 use rayon::prelude::*;
+use std::{collections::HashMap, hash::Hash};
 use swc_atoms::JsWord;
+use swc_common::{Mark, SyntaxContext};
 use swc_ecma_ast::{Ident, ModuleItem};
 use swc_ecma_visit::{VisitMut, VisitMutWith};
-use std::{
-  collections::{HashMap},
-  hash::Hash,
-};
-use swc_common::{Mark, SyntaxContext};
-
 
 use self::renamer::Renamer;
 
@@ -40,7 +34,15 @@ impl std::fmt::Debug for Module {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.debug_struct("Module")
       .field("id", &self.id)
-      .field("declared", &self.scope.declared_symbols.keys().map(|s| s.to_string()).collect::<Vec<String>>())
+      .field(
+        "declared",
+        &self
+          .scope
+          .declared_symbols
+          .keys()
+          .map(|s| s.to_string())
+          .collect::<Vec<String>>(),
+      )
       .field("need_renamed", &self.need_renamed)
       .field("scope", &self.scope)
       .finish()
@@ -97,15 +99,15 @@ impl Module {
     });
 
     ast.visit_mut_children_with(&mut ClearMark);
-    
+
     let mut scanner = Scanner::new(self.scope.clone());
-    
+
     ast.visit_mut_children_with(&mut scanner);
 
     println!("ast {:#?}", ast);
-    
+
     self.scope = scanner.get_cur_scope().clone();
-    
+
     let statements = ast
       .body
       .into_par_iter()
@@ -149,7 +151,6 @@ impl Hash for Module {
 #[derive(Clone, Copy)]
 struct ClearMark;
 impl VisitMut for ClearMark {
-
   fn visit_mut_ident(&mut self, ident: &mut Ident) {
     ident.span.ctxt = SyntaxContext::empty();
   }

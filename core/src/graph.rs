@@ -152,32 +152,20 @@ fn analyse_external_module(
   ctx.graph.add_edge(parent, node_idx, rel);
 }
 
-fn analyse_dep(
-  ctx: &mut AnalyseContext,
-  scanner: Scanner,
-  module_id: &str,
-  parent: NodeIndex,
-) {
-  scanner
-    .imports
-    .into_values()
-    .into_iter()
-    .for_each(|imp| {
-      let unresolved_id = &imp.source;
-      let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
-      let mod_or_ext = resove_module_by_resolved_id(resolved_id);
-      analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::Import(imp));
-    });
+fn analyse_dep(ctx: &mut AnalyseContext, scanner: Scanner, module_id: &str, parent: NodeIndex) {
+  scanner.imports.into_values().into_iter().for_each(|imp| {
+    let unresolved_id = &imp.source;
+    let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
+    let mod_or_ext = resove_module_by_resolved_id(resolved_id);
+    analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::Import(imp));
+  });
 
-  scanner
-    .dynamic_imports
-    .into_iter()
-    .for_each(|dyn_imp| {
-      let unresolved_id = &dyn_imp.argument;
-      let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
-      let mod_or_ext = resove_module_by_resolved_id(resolved_id);
-      analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::DynImport(dyn_imp));
-    });
+  scanner.dynamic_imports.into_iter().for_each(|dyn_imp| {
+    let unresolved_id = &dyn_imp.argument;
+    let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
+    let mod_or_ext = resove_module_by_resolved_id(resolved_id);
+    analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::DynImport(dyn_imp));
+  });
 
   scanner
     .re_exports
@@ -190,15 +178,12 @@ fn analyse_dep(
       analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::ReExport(re_expr));
     });
 
-  scanner
-    .export_all_sources
-    .into_iter()
-    .for_each(|source| {
-      let unresolved_id = &source;
-      let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
-      let mod_or_ext = resove_module_by_resolved_id(resolved_id);
-      analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::ReExportAll);
-    });
+  scanner.export_all_sources.into_iter().for_each(|source| {
+    let unresolved_id = &source;
+    let resolved_id = resolve_id(unresolved_id, Some(module_id), false);
+    let mod_or_ext = resove_module_by_resolved_id(resolved_id);
+    analyse_mod_or_ext(ctx, mod_or_ext, parent, Rel::ReExportAll);
+  });
 }
 
 fn analyse_mod_or_ext(ctx: &mut AnalyseContext, mod_or_ext: ModOrExt, parent: NodeIndex, rel: Rel) {

@@ -1,4 +1,3 @@
-
 use swc_atoms::JsWord;
 
 use swc_ecma_ast::{
@@ -107,7 +106,7 @@ impl Scanner {
       }
     }
   }
-  
+
   pub fn add_export(
     &mut self,
     module_decl: &ModuleDecl,
@@ -123,7 +122,7 @@ impl Scanner {
           DefaultDecl::Fn(node) => node.ident.as_ref().map(|id| id.sym.clone()),
           _ => None,
         };
-  
+
         self.exports.insert(
           "default".into(),
           ExportDesc {
@@ -256,5 +255,3 @@ impl Scanner {
     }
   }
 }
-
-
