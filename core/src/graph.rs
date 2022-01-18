@@ -4,6 +4,7 @@ use std::borrow::BorrowMut;
 use std::collections::HashMap;
 
 use dashmap::DashMap;
+use nodejs_path::{dirname, resolve};
 use once_cell::sync::Lazy;
 use petgraph::graph::{EdgeReference, NodeIndex};
 use petgraph::Graph;
@@ -21,6 +22,7 @@ use crate::utils::{
   resolve_id::resolve_id,
   union_find::{UnifyValue, UnionFind},
 };
+use std::ops::Add;
 
 pub(crate) static SOURCE_MAP: Lazy<Lrc<SourceMap>> = Lazy::new(Default::default);
 
@@ -285,6 +287,7 @@ impl GraphContainer {
         .export_all_sources
         .iter()
         .for_each(|src: &JsWord| {
+          println!("export all sources {}", src.as_ref());
           if let Some(module) =
             graph
               .node_indices()
@@ -293,7 +296,9 @@ impl GraphContainer {
                 let node = &graph[node_index];
 
                 if let DepNode::Mod(module) = node {
-                  if module.id.as_str() == src.as_ref() {
+                  let resolved_src =
+                    resolve!(dirname(curr_module.id.as_str()).as_str(), src.as_ref()).add(".js");
+                  if resolve!(module.id.as_str()).as_str() == resolved_src.as_str() {
                     return Some(module);
                   }
                 }
