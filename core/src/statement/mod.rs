@@ -32,4 +32,8 @@ impl Statement {
       is_included: false,
     }
   }
+
+  pub fn into_inner(self) -> ModuleItem {
+    self.node
+  }
 }

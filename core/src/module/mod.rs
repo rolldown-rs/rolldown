@@ -10,13 +10,13 @@ use rayon::prelude::*;
 use std::{collections::HashMap, hash::Hash};
 use swc_atoms::JsWord;
 use swc_common::{Mark, SyntaxContext};
-use swc_ecma_ast::{Ident, ModuleItem};
+use swc_ecma_ast::{Decl, Ident, ModuleDecl, ModuleItem, Stmt};
 use swc_ecma_parser::Syntax;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 
 use self::renamer::Renamer;
 use crate::graph::Ctxt;
-use crate::utils::union_find::UnionFind;
+use crate::utils::{fold_export_decl_to_decl, union_find::UnionFind};
 
 pub mod renamer;
 
@@ -169,7 +169,26 @@ impl Module {
     self
       .statements
       .iter()
-      .filter_map(|s| if s.is_included { Some(s.clone()) } else { None })
+      .filter_map(|s| {
+        if s.is_included {
+          let mut stmt = s.clone();
+          println!("{:#?}", stmt);
+
+          if !self.is_entry && s.is_export_declaration {
+            let module = &mut stmt.node;
+
+            if let ModuleItem::ModuleDecl(ModuleDecl::ExportAll(_)) = &module {
+              return None;
+            }
+
+            fold_export_decl_to_decl(module)
+          }
+
+          Some(stmt)
+        } else {
+          None
+        }
+      })
       .map(|mut stmt| {
         // fold_export_decl_to_decl(&mut stmt.node);
         stmt

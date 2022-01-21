@@ -6,6 +6,6 @@ const foo = () => {
 
 (function() {
    foo();
-   foo2();
-   bar();
+   console.log("foo", foo2)
+   console.log("bar", bar)
 })();
