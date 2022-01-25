@@ -1,6 +1,8 @@
 use std::{ffi::OsString, path::Path};
 
-use crate::{ext::PathExt, plugin_driver::PluginDriver, types::ResolvedId};
+use crate::{
+  ext::PathExt, plugin_driver::PluginDriver, types::ResolvedId, utils::is_external_module,
+};
 
 pub fn resolve_id(
   source: &str,
@@ -11,8 +13,7 @@ pub fn resolve_id(
   let plugin_result = resolve_id_via_plugins(source, importer, plugin_driver);
 
   plugin_result.unwrap_or_else(|| {
-    let res = if importer.is_some() && !nodejs_path::is_absolute(source) && !source.starts_with(".")
-    {
+    let res = if importer.is_some() && is_external_module(source) {
       ResolvedId::new(source.to_owned(), true)
     } else {
       let id = if let Some(importer) = importer {

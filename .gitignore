@@ -122,3 +122,5 @@ dist
 *.node
 
 .idea
+
+output.js

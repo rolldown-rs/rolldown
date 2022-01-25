@@ -9,3 +9,6 @@ const foo = () => {
    console.log("foo", foo2)
    console.log("bar", bar)
 })();
+
+// TODO: add support for bundling external modules
+export * from "lodash";

@@ -15,7 +15,9 @@ use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 use swc_ecma_parser::{EsConfig, TsConfig};
 
 mod hook;
+mod statement;
 pub use hook::*;
+pub use statement::*;
 
 pub mod path {
   pub fn relative_id(id: String) -> String {
@@ -25,6 +27,10 @@ pub mod path {
       id
     }
   }
+}
+
+pub fn is_external_module(source: &str) -> bool {
+  !nodejs_path::is_absolute(source) && !source.starts_with(".")
 }
 
 pub fn parse_file(
@@ -107,7 +113,11 @@ pub fn parse_code(code: &str) -> Result<swc_ecma_ast::Module, ()> {
 
 use swc_common::DUMMY_SP;
 
-pub fn fold_export_decl_to_decl(module_item: &mut ModuleItem, default_name: &JsWord) {
+pub fn fold_export_decl_to_decl(
+  module_item: &mut ModuleItem,
+  default_name: &JsWord,
+  is_entry: bool,
+) {
   if let ModuleItem::ModuleDecl(module_decl) = &module_item {
     *module_item = match module_decl {
       // remove export { foo, baz }
@@ -157,11 +167,18 @@ pub fn fold_export_decl_to_decl(module_item: &mut ModuleItem, default_name: &JsW
             }],
           })))
         } else {
-          ModuleItem::Stmt(Stmt::Empty(EmptyStmt { span: DUMMY_SP }))
+          create_empty_statement()
         }
       }
-      // We could ignore `export * from './foo'`. Since every thing is hoisted.
-      _ => ModuleItem::ModuleDecl(module_decl.clone()),
+      ModuleDecl::ExportAll(export_all) => {
+        // keep external module as it (we may use it later on code-gen) and internal modules removed.
+        if is_entry && is_external_module(export_all.src.value.as_ref()) {
+          ModuleItem::ModuleDecl(module_decl.clone())
+        } else {
+          create_empty_statement()
+        }
+      }
+      _ => create_empty_statement(),
     };
   }
 }

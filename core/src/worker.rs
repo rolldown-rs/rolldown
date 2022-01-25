@@ -90,7 +90,7 @@ impl Worker {
         module.local_exports = scanner.exports;
         module.re_exports = scanner.re_exports;
         module.re_export_all_sources = scanner.export_all_sources;
-        module.delcared = scanner.stacks.into_iter().next().unwrap().declared_symbols;
+        module.declared = scanner.stacks.into_iter().next().unwrap().declared_symbols;
         module.ast = ast;
 
         log::debug!("before link_exports module {:#?}", module);

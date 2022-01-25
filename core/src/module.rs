@@ -27,7 +27,7 @@ pub struct Module {
   pub re_exports: HashMap<JsWord, ReExportDesc>,
   pub re_export_all_sources: HashSet<JsWord>,
   pub exports: HashMap<JsWord, Mark>,
-  pub delcared: HashMap<JsWord, Mark>,
+  pub declared: HashMap<JsWord, Mark>,
   pub resolved_ids: HashMap<JsWord, ResolvedId>,
   pub suggested_names: HashMap<JsWord, JsWord>,
 }
@@ -41,7 +41,7 @@ impl Module {
       re_export_all_sources: Default::default(),
       re_exports: Default::default(),
       exports: Default::default(),
-      delcared: Default::default(),
+      declared: Default::default(),
       resolved_ids: Default::default(),
       suggested_names: Default::default(),
     }
@@ -69,8 +69,8 @@ impl Module {
         // And we need to generate a name for it lately.
         return;
       }
-      if let Some(delcared_name_mark) = self.delcared.get(name) {
-        symbol_box.union(export_desc.mark, *delcared_name_mark);
+      if let Some(declared_name_mark) = self.declared.get(name) {
+        symbol_box.union(export_desc.mark, *declared_name_mark);
       } else {
         panic!("unkown export {:?} for module {}", name, self.id);
       }
@@ -111,7 +111,7 @@ impl std::fmt::Debug for Module {
       .field("re_exports", &self.re_exports)
       .field("re_export_all_sources", &self.re_export_all_sources)
       .field("exports", &self.exports)
-      .field("delcared", &self.delcared)
+      .field("declared", &self.declared)
       .field("resolved_ids", &self.resolved_ids)
       .field("suggested_names", &self.suggested_names)
       .finish()

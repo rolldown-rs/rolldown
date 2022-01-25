@@ -87,27 +87,27 @@ impl GraphContainer {
 
   // build dependency graph via entry modules.
   fn generate_module_graph(&mut self) {
-    // setup
     let nums_of_thread = num_cpus::get_physical();
     let idle_thread_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(nums_of_thread));
     let job_queue: Arc<SegQueue<ResolvedId>> = Default::default();
-    let mut path_to_node_idx: HashMap<String, NodeIndex> = Default::default();
-    let processed_id: Arc<DashSet<String>> = Default::default();
-    let (tx, rx) = channel::unbounded::<Msg>();
-
-    // setup entry modules
     let entry_id = resolve_id(
       &self.entry_path,
       None,
       false,
       &self.plugin_driver.lock().unwrap(),
     );
+    let mut path_to_node_idx: HashMap<String, NodeIndex> = Default::default();
+
     let entry_idx = self.graph.add_node(entry_id.id.clone());
     self.entries.push(entry_idx);
     path_to_node_idx.insert(entry_id.id.clone(), entry_idx);
+    println!("entry_id {:?}", entry_id);
     job_queue.push(entry_id);
 
-    // println!("entry_id {:?}", entry_id);
+    // let id_to_module: Arc<DashMap<String, Module>> = self.id_to_module.clone();
+    let processed_id: Arc<DashSet<String>> = Default::default();
+
+    let (tx, rx) = channel::unbounded::<Msg>();
 
     for _ in 0..nums_of_thread {
       let idle_thread_count = idle_thread_count.clone();
@@ -147,11 +147,11 @@ impl GraphContainer {
           }
           Msg::DependencyReference(from, to, rel) => {
             let from_id = *path_to_node_idx
-              .entry(from)
-              .or_insert_with_key(|key| self.graph.add_node(key.clone()));
+              .entry(from.clone())
+              .or_insert_with(|| self.graph.add_node(from));
             let to_id = *path_to_node_idx
-              .entry(to)
-              .or_insert_with_key(|key| self.graph.add_node(key.clone()));
+              .entry(to.clone())
+              .or_insert_with(|| self.graph.add_node(to));
             self.graph.add_edge(from_id, to_id, rel);
           }
           _ => {}
@@ -174,9 +174,14 @@ impl GraphContainer {
   pub fn build(&mut self) {
     let start = Instant::now();
     self.generate_module_graph();
-    println!("generate_module_graph finished in {}", start.elapsed().as_millis());
+    println!(
+      "generate_module_graph finished in {}",
+      start.elapsed().as_millis()
+    );
+
     self.sort_modules();
     println!("sort_modules finished in {}", start.elapsed().as_millis());
+
     self.link_module_exports();
     self.link_module();
     println!("link finished in {}", start.elapsed().as_millis());
@@ -201,30 +206,32 @@ impl GraphContainer {
 
   pub fn link_module_exports(&mut self) {
     self.ordered_modules.iter().for_each(|idx| {
-      let re_export_all_ids = {
-        let module = self.id_to_module.get_mut(&self.graph[*idx]).unwrap();
-        module
+      let mut dep_module_exports = vec![];
+
+      if let Some(module) = self.id_to_module.get_mut(&self.graph[*idx]) {
+        let re_export_all_ids = module
           .re_export_all_sources
           .clone()
           .iter()
           .map(|dep| module.resolve_id(dep, &self.plugin_driver))
-          .collect::<Vec<_>>()
-      };
-      let mut dep_module_exports = vec![];
-      re_export_all_ids.into_iter().for_each(|resolved_id| {
-        if !resolved_id.external {
-          let re_exported = self.id_to_module.get(&resolved_id.id).unwrap();
-          re_exported.exports.clone().into_iter().for_each(|item| {
-            dep_module_exports.push(item);
-          });
-        }
-      });
+          .collect::<Vec<_>>();
 
-      let module = self.id_to_module.get_mut(&self.graph[*idx]).unwrap();
-      dep_module_exports.into_iter().for_each(|(key, mark)| {
-        // TODO: we need to detect duplicate export here.
-        module.exports.insert(key, mark);
-      });
+        re_export_all_ids.into_iter().for_each(|resolved_id| {
+          if !resolved_id.external {
+            let re_exported = self.id_to_module.get(&resolved_id.id).unwrap();
+            re_exported.exports.clone().into_iter().for_each(|item| {
+              dep_module_exports.push(item);
+            });
+          }
+        });
+      }
+
+      if let Some(module) = self.id_to_module.get_mut(&self.graph[*idx]) {
+        dep_module_exports.into_iter().for_each(|(key, mark)| {
+          // TODO: we need to detect duplicate export here.
+          module.exports.insert(key, mark);
+        });
+      }
     });
   }
 

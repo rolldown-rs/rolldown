@@ -43,6 +43,7 @@ impl Scanner {
         .import_infos
         .entry(source.clone())
         .or_insert_with(|| ImportInfo::new(source));
+      // We separate each specifier to support later tree-shaking.
       import_decl.specifiers.iter().for_each(|specifier| {
         let used;
         let original;
