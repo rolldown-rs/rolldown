@@ -1,5 +1,8 @@
+use std::sync::{Arc, Mutex};
 use std::{ffi::OsString, path::Path};
+use swc_common::util::take::Take;
 
+use crate::types::IsExternal;
 use crate::{
   ext::PathExt, plugin_driver::PluginDriver, types::ResolvedId, utils::is_external_module,
 };
@@ -9,12 +12,22 @@ pub fn resolve_id(
   importer: Option<&str>,
   preserve_symlinks: bool,
   plugin_driver: &PluginDriver,
+  external: Arc<Mutex<Vec<IsExternal>>>,
 ) -> ResolvedId {
-  let plugin_result = resolve_id_via_plugins(source, importer, plugin_driver);
+  let mut plugin_result = resolve_id_via_plugins(source, importer, plugin_driver);
+
+  plugin_result = plugin_result.and_then(|mut result| {
+    result.external = external
+      .lock()
+      .unwrap()
+      .iter()
+      .find_map(|test_func| -> Option<bool> { Some(test_func(source, importer, false)) });
+    Some(result)
+  });
 
   plugin_result.unwrap_or_else(|| {
     let res = if importer.is_some() && is_external_module(source) {
-      ResolvedId::new(source.to_string(), true)
+      ResolvedId::new(source.to_string(), Some(true))
     } else {
       let id = if let Some(importer) = importer {
         nodejs_path::resolve!(&nodejs_path::dirname(importer), source)
@@ -23,7 +36,7 @@ pub fn resolve_id(
       };
       ResolvedId::new(
         fast_add_js_extension_if_necessary(id, preserve_symlinks),
-        false,
+        Some(false),
       )
     };
     res

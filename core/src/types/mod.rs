@@ -8,11 +8,11 @@ pub use normalized_output_options::*;
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ResolvedId {
   pub id: String,
-  pub external: bool,
+  pub external: Option<bool>,
 }
 
 impl ResolvedId {
-  pub fn new(id: String, external: bool) -> Self {
+  pub fn new(id: String, external: Option<bool>) -> Self {
     Self {
       id,
       external,

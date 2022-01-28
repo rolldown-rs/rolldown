@@ -2,10 +2,12 @@ use std::sync::{Arc, Mutex};
 
 use crossbeam::{channel::Sender, queue::SegQueue};
 use dashmap::DashSet;
+use node_resolve::resolve;
 
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_visit::VisitMutWith;
 
+use crate::types::IsExternal;
 use crate::{
   graph::{Msg, Rel},
   module::Module,
@@ -22,6 +24,7 @@ pub struct Worker {
   pub tx: Sender<Msg>,
   pub plugin_driver: Arc<Mutex<PluginDriver>>,
   pub processed_id: Arc<DashSet<String>>,
+  pub external: Arc<Mutex<Vec<IsExternal>>>,
 }
 
 impl Worker {
@@ -40,7 +43,7 @@ impl Worker {
   #[inline]
   pub fn run(&mut self) {
     if let Some(resolved_id) = self.fetch_job() {
-      if resolved_id.external {
+      if resolved_id.external.unwrap_or_default() {
       } else {
         let mut module = Module::new(resolved_id.id.clone());
         let source = load(&resolved_id.id, &self.plugin_driver.lock().unwrap());
@@ -51,7 +54,7 @@ impl Worker {
         ast.visit_mut_with(&mut scanner);
 
         scanner.import_infos.iter().for_each(|(imported, info)| {
-          let resolved_id = module.resolve_id(imported, &self.plugin_driver);
+          let resolved_id = module.resolve_id(imported, &self.plugin_driver, self.external.clone());
           self
             .tx
             .send(Msg::DependencyReference(
@@ -65,7 +68,8 @@ impl Worker {
           .re_export_infos
           .iter()
           .for_each(|(re_exported, info)| {
-            let resolved_id = module.resolve_id(re_exported, &self.plugin_driver);
+            let resolved_id =
+              module.resolve_id(re_exported, &self.plugin_driver, self.external.clone());
             self
               .tx
               .send(Msg::DependencyReference(
@@ -76,7 +80,8 @@ impl Worker {
               .unwrap();
           });
         scanner.export_all_sources.iter().for_each(|re_exported| {
-          let resolved_id = module.resolve_id(re_exported, &self.plugin_driver);
+          let resolved_id =
+            module.resolve_id(re_exported, &self.plugin_driver, self.external.clone());
           self
             .tx
             .send(Msg::DependencyReference(
@@ -139,7 +144,20 @@ impl Worker {
           _ => {}
         }
         if let Some(depended) = depended {
-          let resolved_id = module.resolve_id(depended, &self.plugin_driver);
+          let mut resolved_id =
+            module.resolve_id(depended, &self.plugin_driver, self.external.clone());
+
+          // let internal_external = resolved_id.external;
+          //
+          // resolved_id.external = {
+          //   if internal_external {
+          //     true
+          //   } else {
+          //     // include all by default
+          //     is_external.unwrap_or(false)
+          //   }
+          // };
+
           self.job_queue.push(resolved_id);
         }
       }

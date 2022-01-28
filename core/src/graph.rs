@@ -23,6 +23,7 @@ use swc_atoms::JsWord;
 use swc_common::sync::Lrc;
 use swc_common::SourceMap;
 
+use crate::types::{IsExternal, NormalizedInputOptions};
 use crate::{
   external_module::ExternalModule,
   module::Module,
@@ -39,6 +40,7 @@ type ModuleGraph = petgraph::graph::DiGraph<String, Rel>;
 pub struct GraphContainer {
   pub entries: Vec<String>,
   resolved_entries: Vec<ResolvedId>,
+  pub external: Arc<Mutex<Vec<IsExternal>>>,
   pub graph: ModuleGraph,
   pub entry_indexs: Vec<NodeIndex>,
   pub ordered_modules: Vec<NodeIndex>,
@@ -55,7 +57,6 @@ pub enum ModOrExt {
   Ext(ExternalModule),
 }
 
-
 // Relation between modules
 #[derive(Debug)]
 pub enum Rel {
@@ -71,13 +72,16 @@ pub enum Msg {
 }
 
 impl GraphContainer {
-  pub fn new(entries: Vec<String>) -> Self {
+  pub fn new(options: &NormalizedInputOptions) -> Self {
     Self {
-      entries,
+      external: Arc::clone(&options.external),
+      entries: options.input.clone(),
       resolved_entries: Default::default(),
       entry_indexs: Default::default(),
       ordered_modules: Default::default(),
-      plugin_driver: Arc::new(Mutex::new(PluginDriver::new())),
+      plugin_driver: Arc::new(Mutex::new(PluginDriver::from_plugins(
+        options.plugins.clone(),
+      ))),
       resolved_ids: Default::default(),
       id_to_module: Default::default(),
       graph: ModuleGraph::new(),
@@ -86,10 +90,10 @@ impl GraphContainer {
     }
   }
 
-  #[inline]
-  pub fn from_single_entry(entry: String) -> Self {
-    Self::new(vec![entry])
-  }
+  // #[inline]
+  // pub fn from_single_entry(entry: String) -> Self {
+  //   Self::new(vec![entry])
+  // }
   // build dependency graph via entry modules.
   fn generate_module_graph(&mut self) {
     let nums_of_thread = num_cpus::get();
@@ -98,7 +102,15 @@ impl GraphContainer {
     self.resolved_entries = self
       .entries
       .iter()
-      .map(|entry| resolve_id(entry, None, false, &self.plugin_driver.lock().unwrap()))
+      .map(|entry| {
+        resolve_id(
+          entry,
+          None,
+          false,
+          &self.plugin_driver.lock().unwrap(),
+          self.external.clone(),
+        )
+      })
       .collect();
 
     let mut path_to_node_idx: HashMap<String, NodeIndex> = Default::default();
@@ -123,6 +135,7 @@ impl GraphContainer {
         processed_id: processed_id.clone(),
         plugin_driver: self.plugin_driver.clone(),
         symbol_box: self.symbol_box.clone(),
+        external: self.external.clone(),
       };
       std::thread::spawn(move || loop {
         idle_thread_count.fetch_sub(1, Ordering::SeqCst);
@@ -231,11 +244,11 @@ impl GraphContainer {
           .re_export_all_sources
           .clone()
           .iter()
-          .map(|dep| module.resolve_id(dep, &self.plugin_driver))
+          .map(|dep| module.resolve_id(dep, &self.plugin_driver, self.external.clone()))
           .collect::<Vec<_>>();
 
         re_export_all_ids.into_iter().for_each(|resolved_id| {
-          if !resolved_id.external {
+          if !resolved_id.external.unwrap_or_default() {
             let re_exported = self.id_to_module.get(&resolved_id.id).unwrap();
             re_exported.exports.clone().into_iter().for_each(|item| {
               dep_module_exports.push(item);

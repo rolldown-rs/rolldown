@@ -1,9 +1,9 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::types::ResolveIdResult;
 
 pub struct PluginDriver {
-  pub plugins: Mutex<Vec<Box<dyn Plugin + Send>>>,
+  pub plugins: Arc<Mutex<Vec<Box<dyn Plugin + Send>>>>,
 }
 
 impl PluginDriver {
@@ -11,6 +11,10 @@ impl PluginDriver {
     Self {
       plugins: Default::default(),
     }
+  }
+
+  pub fn from_plugins(plugins: Arc<Mutex<Vec<Box<dyn Plugin + Send>>>>) -> Self {
+    Self { plugins }
   }
 }
 

@@ -1,40 +1,40 @@
-use dashmap::DashSet;
-
-use crate::{chunk::Chunk, graph};
+use crate::{chunk::Chunk, graph, types::NormalizedInputOptions};
 
 #[non_exhaustive]
 pub struct Bundle {
-  pub graph_container: graph::GraphContainer,
+  input_options: NormalizedInputOptions,
+  graph_container: Option<graph::GraphContainer>,
 }
 
 impl Bundle {
-  pub fn new(graph: graph::GraphContainer) -> Self {
+  pub fn new(input_options: NormalizedInputOptions) -> Self {
     Self {
-      graph_container: graph,
+      input_options,
+      graph_container: None,
     }
   }
 
+  pub fn build(&mut self) {
+    let mut graph = graph::GraphContainer::new(&self.input_options);
+    graph.build();
+    self.graph_container = Some(graph)
+  }
+
   pub fn generate(&mut self) -> String {
-    let entries = DashSet::new();
-    self.graph_container.entry_indexs.iter().for_each(|entry| {
-      let entry = self.graph_container.graph[*entry].to_owned();
-      entries.insert(entry);
-    });
+    if let Some(graph) = &mut self.graph_container {
+      let mut chunk = Chunk {
+        order_modules: graph
+          .ordered_modules
+          .clone()
+          .into_iter()
+          .map(|idx| graph.graph[idx].clone())
+          .collect(),
+        symbol_box: graph.symbol_box.clone(),
+      };
 
-    let mut chunk = Chunk {
-      order_modules: self
-        .graph_container
-        .ordered_modules
-        .clone()
-        .into_iter()
-        .map(|idx| self.graph_container.graph[idx].clone())
-        .collect(),
-      symbol_box: self.graph_container.symbol_box.clone(),
-      entries,
-      canonical_names: Default::default(),
-      exports: Default::default(),
-    };
-
-    chunk.render(&mut self.graph_container.id_to_module)
+      chunk.render(&mut graph.id_to_module)
+    } else {
+      panic!("You may run build first")
+    }
   }
 }

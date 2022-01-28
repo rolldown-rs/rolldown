@@ -1,7 +1,8 @@
 use crate::plugin_driver::Plugin;
+use std::sync::{Arc, Mutex};
 
 // (source: &str, importer: Option<&str>, is_resolved: bool)
-type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool>;
+pub type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool + Send>;
 
 // type ModuleContext = Box<dyn Fn(&str) -> &str>;
 
@@ -33,10 +34,10 @@ pub struct NormalizedInputOptions {
 
   // --- Options that Rolldown must need to be supported
   // treeshake: false | NormalizedTreeshakingOptions;
-  pub plugins: Vec<Box<dyn Plugin>>,
+  pub plugins: Arc<Mutex<Vec<Box<dyn Plugin + Send>>>>,
   // By default, the context of a module – i.e., the value of this at the top level – is undefined. In rare cases you might need to change this to something else, like 'window'.
   // pub context: Option<String>,
-  // pub external: IsExternal,
+  pub external: Arc<Mutex<Vec<IsExternal>>>,
   // (alias: Option<String>, path: String)
   pub input: Vec<String>,
   // pub preserve_symlinks: bool,
@@ -46,7 +47,7 @@ impl Default for NormalizedInputOptions {
   fn default() -> Self {
     Self {
       // context: None,
-      // external: Box::new(|_, _, _| false),
+      external: Arc::new(Mutex::new(vec![Box::new(|_, _, _| false)])),
       input: Default::default(),
       // preserve_symlinks: false,
       plugins: Default::default(),

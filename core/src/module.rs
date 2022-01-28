@@ -4,7 +4,7 @@ use crate::symbol_box::SymbolBox;
 use crate::utils::{ast_sugar, resolve_id};
 use std::collections::HashMap;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::{collections::HashSet, hash::Hash};
 
 use ast::{
@@ -20,7 +20,7 @@ use swc_ecma_ast::Ident;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
 
 use crate::scanner::rel::{ExportDesc, ReExportDesc};
-use crate::types::ResolvedId;
+use crate::types::{IsExternal, ResolvedId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Namespace {
@@ -109,12 +109,19 @@ impl Module {
     &mut self,
     dep_src: &JsWord,
     plugin_driver: &Mutex<PluginDriver>,
+    external: Arc<Mutex<Vec<IsExternal>>>,
   ) -> ResolvedId {
     self
       .resolved_ids
       .entry(dep_src.clone())
       .or_insert_with_key(|key| {
-        resolve_id(key, Some(&self.id), false, &plugin_driver.lock().unwrap())
+        resolve_id(
+          key,
+          Some(&self.id),
+          false,
+          &plugin_driver.lock().unwrap(),
+          external,
+        )
       })
       .clone()
   }
@@ -272,6 +279,7 @@ pub fn fold_export_decl_to_decl(
           .get(&export_all.src.value)
           .unwrap()
           .external
+          .unwrap_or_default()
         {
           ModuleItem::ModuleDecl(ModuleDecl::ExportAll(export_all))
         } else {

@@ -1,54 +1,39 @@
 use dashmap::DashSet;
 use std::{
+  cmp::Ordering,
   collections::{HashMap, HashSet},
-  sync::{Arc, Mutex}, cmp::Ordering,
+  sync::{Arc, Mutex},
 };
 
-use crate::{
-  module::Module, renamer::Renamer, symbol_box::SymbolBox, compiler,
-};
+use crate::{compiler, module::Module, renamer::Renamer, symbol_box::SymbolBox};
 
 use rayon::prelude::*;
-use swc_atoms::{JsWord};
+use swc_atoms::JsWord;
 use swc_common::{
   comments::{Comment, CommentKind, Comments, SingleThreadedComments},
   Mark, SyntaxContext, DUMMY_SP,
 };
-use swc_ecma_ast::{
-  EmptyStmt, EsVersion, ModuleItem, Stmt,
-};
+use swc_ecma_ast::{EmptyStmt, EsVersion, ModuleItem, Stmt};
 use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_visit::VisitMutWith;
 
 pub struct Chunk {
   pub order_modules: Vec<String>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
-  pub entries: DashSet<String>,
-  pub exports: HashMap<JsWord, Mark>,
-  // SyntaxContext to Safe name mapping
-  pub canonical_names: HashMap<SyntaxContext, JsWord>,
 }
 
 impl Chunk {
-  pub fn new(
-    order_modules: Vec<String>,
-    symbol_box: Arc<Mutex<SymbolBox>>,
-    canonical_names: HashMap<SyntaxContext, JsWord>,
-    entries: DashSet<String>,
-  ) -> Self {
+  pub fn new(order_modules: Vec<String>, symbol_box: Arc<Mutex<SymbolBox>>) -> Self {
     Self {
       order_modules,
       symbol_box,
-      canonical_names,
-      entries,
-      exports: Default::default(),
     }
   }
 
   pub fn deconflict(&mut self, modules: &mut HashMap<String, Module>) {
     let mut used_names = HashSet::new();
     let mut mark_to_name = HashMap::new();
-    let mut entry_first_modules =  modules.values().collect::<Vec<_>>();
+    let mut entry_first_modules = modules.values().collect::<Vec<_>>();
     entry_first_modules.sort_by(|a, b| {
       if a.is_user_defined_entry_point && !b.is_user_defined_entry_point {
         Ordering::Less
