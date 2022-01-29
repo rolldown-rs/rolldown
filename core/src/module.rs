@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::plugin_driver::PluginDriver;
+use crate::scanner::ModuleItemInfo;
 use crate::symbol_box::SymbolBox;
 use crate::utils::{ast_sugar, resolve_id};
 use std::collections::HashMap;
@@ -42,6 +43,7 @@ pub struct Module {
   pub suggested_names: HashMap<JsWord, JsWord>,
   pub namespace: Namespace,
   pub is_user_defined_entry_point: bool,
+  pub module_item_infos: HashMap<usize, ModuleItemInfo>,
 }
 
 impl Module {
@@ -59,6 +61,7 @@ impl Module {
       imported_symbols: Default::default(),
       namespace: Default::default(),
       is_user_defined_entry_point: false,
+      module_item_infos: Default::default(),
     }
   }
 
@@ -198,6 +201,7 @@ impl std::fmt::Debug for Module {
       .field("imported_symbols", &self.imported_symbols)
       .field("resolved_ids", &self.resolved_ids)
       .field("suggested_names", &self.suggested_names)
+      .field("module_item_infos", &self.module_item_infos)
       .finish()
   }
 }

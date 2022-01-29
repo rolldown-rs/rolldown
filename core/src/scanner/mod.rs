@@ -13,7 +13,7 @@ use swc_ecma_ast::{
   MethodProp, ModuleDecl, ModuleItem, ObjectLit, Param, Pat, PatOrExpr, PrivateMethod, SetterProp,
   Stmt, TaggedTpl, Tpl, VarDecl, VarDeclarator,
 };
-use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
+use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith, VisitAllWith};
 
 use crate::{ext::MarkExt, graph::Msg, symbol_box::SymbolBox};
 
@@ -28,11 +28,21 @@ pub mod scope;
 mod symbol;
 use rel::{DynImportDesc, ExportDesc, ImportInfo, ReExportDesc};
 
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ModuleItemInfo {
+  pub declared: HashSet<JsWord>,
+  pub reads: HashSet<JsWord>,
+  pub writes: HashSet<JsWord>,
+}
+
 // Declare symbols
 // Bind symbols. We use Hoister to handle varible hoisting situation.
 // TODO: Fold constants
 #[derive(Clone)]
 pub struct Scanner {
+  pub module_item_infos: HashMap<usize, ModuleItemInfo>,
+  cur_module_item_index: usize,
   // scope
   pub stacks: Vec<Scope>,
   // mark
@@ -53,6 +63,8 @@ pub struct Scanner {
 impl Scanner {
   pub fn new(symbol_box: Arc<Mutex<SymbolBox>>, tx: Sender<Msg>) -> Self {
     Self {
+      module_item_infos: Default::default(),
+      cur_module_item_index: 0,
       // scope
       stacks: vec![Scope::new(ScopeKind::Fn)],
       // rel
@@ -68,6 +80,10 @@ impl Scanner {
       symbol_box,
       tx,
     }
+  }
+
+  pub fn get_cur_module_item_info(&mut self) -> &mut ModuleItemInfo {
+    self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default())
   }
 
   pub fn declare(&mut self, id: &mut Ident, kind: BindType) {
@@ -98,6 +114,7 @@ impl Scanner {
       })
       .map(|(idx, scope)| {
         let name = id.sym.clone();
+        let is_root_scope = idx == 0;
         if let Some(declared_kind) = scope.declared_symbols_kind.get(&name) {
           // Valid
           // var a; var a;
@@ -120,13 +137,24 @@ impl Scanner {
         scope.declared_symbols.insert(id.sym.clone().clone(), mark);
         id.span.ctxt = mark.as_ctxt();
         scope.declared_symbols.insert(id.sym.clone(), mark);
+        if is_root_scope {
+          let module_item_info = self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default());
+          // TODO: duplicate detect
+          module_item_info.declared.insert(id.sym.clone());
+        };
       });
   }
 
   pub fn resolve_ctxt_for_ident(&mut self, ident: &mut Ident) {
-    for scope in &mut self.stacks.iter_mut().rev() {
+    for (idx, scope) in &mut self.stacks.iter_mut().enumerate().rev() {
+      let is_root_scope = idx == 0;
       if let Some(mark) = scope.declared_symbols.get(&ident.sym) {
         ident.span.ctxt = mark.as_ctxt();
+        if is_root_scope {
+          let module_item_info = self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default());
+          // TODO: duplicate detect
+          module_item_info.reads.insert(ident.sym.clone());
+        }
         break;
       };
     }
@@ -163,6 +191,11 @@ impl VisitMut for Scanner {
     let mut hoister = Hoister::new(self);
     node.visit_mut_children_with(&mut hoister);
     node.visit_mut_children_with(self);
+  }
+
+  fn visit_mut_module_item(&mut self, node: &mut swc_ecma_ast::ModuleItem) {
+    node.visit_mut_children_with(self);
+    self.cur_module_item_index += 1;
   }
 
   fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {

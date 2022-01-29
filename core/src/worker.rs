@@ -90,6 +90,7 @@ impl Worker {
         module.local_exports = scanner.local_exports;
         module.re_exports = scanner.re_exports;
         module.re_export_all_sources = scanner.export_all_sources;
+        module.module_item_infos = scanner.module_item_infos;
         // module.declared =
         {
           let root_scope = scanner.stacks.into_iter().next().unwrap();
