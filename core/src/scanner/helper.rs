@@ -1,6 +1,7 @@
 use swc_atoms::JsWord;
 use swc_ecma_ast::{Ident, ObjectPatProp, Pat};
 
+#[inline]
 pub fn collect_ident_of_pat(pat: &Pat) -> Vec<&Ident> {
   match pat {
     // export const a = 1;
@@ -53,6 +54,7 @@ pub fn collect_mut_ident_of_pat(pat: &mut Pat) -> Vec<&mut Ident> {
   }
 }
 
+#[inline]
 pub fn collect_js_word_of_pat(pat: &Pat) -> Vec<JsWord> {
   collect_ident_of_pat(pat)
     .into_iter()

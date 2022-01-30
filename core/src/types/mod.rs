@@ -4,15 +4,16 @@ mod normalized_input_options;
 pub use normalized_input_options::*;
 mod normalized_output_options;
 pub use normalized_output_options::*;
+use smol_str::SmolStr;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct ResolvedId {
-  pub id: String,
+  pub id: SmolStr,
   pub external: bool,
 }
 
 impl ResolvedId {
-  pub fn new(id: String, external: bool) -> Self {
+  pub fn new(id: SmolStr, external: bool) -> Self {
     Self {
       id,
       external,
@@ -22,12 +23,3 @@ impl ResolvedId {
 }
 
 pub type ResolveIdResult = Option<ResolvedId>;
-
-// --- UnresolvedModule
-
-pub struct UnresolvedModule {
-  pub file_name: Option<String>,
-  pub id: String,
-  pub importer: Option<String>,
-  pub name: Option<String>,
-}

@@ -6,7 +6,7 @@ use std::{
 use swc_common::{Mark, SyntaxContext};
 use swc_ecma_ast::{
   ExportNamedSpecifier, Expr, Ident, ImportDecl, KeyValueProp, ObjectLit, Prop,
-  PropName, PropOrSpread,
+  PropName, PropOrSpread, ModuleExportName,
 };
 use swc_ecma_visit::{VisitMut, VisitMutWith};
 
@@ -48,9 +48,11 @@ impl<'me> VisitMut for Renamer<'me> {
 
   fn visit_mut_export_named_specifier(&mut self, node: &mut ExportNamedSpecifier) {
     node.visit_mut_children_with(self);
-    if let Some(exported_ident) = &node.exported {
-      if &node.orig == exported_ident {
-        node.exported = None
+    if let Some(ModuleExportName::Ident(expr)) = &node.exported {
+      if let ModuleExportName::Ident(orig) = &node.orig {
+        if expr.sym == orig.sym {
+          node.exported = None
+        }
       }
     }
   }

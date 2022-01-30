@@ -2,14 +2,15 @@ use std::sync::{Arc, Mutex};
 
 use crossbeam::{channel::Sender, queue::SegQueue};
 use dashmap::DashSet;
+use rayon::prelude::*;
 
+use smol_str::SmolStr;
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_visit::VisitMutWith;
 
 use crate::{
   graph::{Msg, Rel},
   module::Module,
-  plugin_driver::PluginDriver,
   scanner::{scope::BindType, Scanner},
   symbol_box::SymbolBox,
   types::ResolvedId,
@@ -20,8 +21,7 @@ pub struct Worker {
   pub symbol_box: Arc<Mutex<SymbolBox>>,
   pub job_queue: Arc<SegQueue<ResolvedId>>,
   pub tx: Sender<Msg>,
-  pub plugin_driver: Arc<Mutex<PluginDriver>>,
-  pub processed_id: Arc<DashSet<String>>,
+  pub processed_id: Arc<DashSet<SmolStr>>,
 }
 
 impl Worker {
@@ -43,7 +43,7 @@ impl Worker {
       if resolved_id.external {
       } else {
         let mut module = Module::new(resolved_id.id.clone());
-        let source = load(&resolved_id.id, &self.plugin_driver.lock().unwrap());
+        let source = load(&resolved_id.id);
         let mut ast = parse_file(source, &module.id);
         self.pre_analyze_imported_module(&mut module, &ast);
 
@@ -51,7 +51,7 @@ impl Worker {
         ast.visit_mut_with(&mut scanner);
 
         scanner.import_infos.iter().for_each(|(imported, info)| {
-          let resolved_id = module.resolve_id(imported, &self.plugin_driver);
+          let resolved_id = module.resolve_id(imported);
           self
             .tx
             .send(Msg::DependencyReference(
@@ -65,7 +65,7 @@ impl Worker {
           .re_export_infos
           .iter()
           .for_each(|(re_exported, info)| {
-            let resolved_id = module.resolve_id(re_exported, &self.plugin_driver);
+            let resolved_id = module.resolve_id(re_exported);
             self
               .tx
               .send(Msg::DependencyReference(
@@ -76,7 +76,7 @@ impl Worker {
               .unwrap();
           });
         scanner.export_all_sources.iter().for_each(|re_exported| {
-          let resolved_id = module.resolve_id(re_exported, &self.plugin_driver);
+          let resolved_id = module.resolve_id(re_exported);
           self
             .tx
             .send(Msg::DependencyReference(
@@ -90,8 +90,6 @@ impl Worker {
         module.local_exports = scanner.local_exports;
         module.re_exports = scanner.re_exports;
         module.re_export_all_sources = scanner.export_all_sources;
-        module.module_item_infos = scanner.module_item_infos;
-        // module.declared =
         {
           let root_scope = scanner.stacks.into_iter().next().unwrap();
           let declared_symbols = root_scope.declared_symbols;
@@ -107,7 +105,7 @@ impl Worker {
         }
         module.namespace.mark = self.symbol_box.lock().unwrap().new_mark();
 
-        module.ast = ast;
+        module.set_ast(ast.clone(), scanner.statement_infos);
 
         module.bind_local_references(&mut self.symbol_box.lock().unwrap());
 
@@ -140,7 +138,7 @@ impl Worker {
           _ => {}
         }
         if let Some(depended) = depended {
-          let resolved_id = module.resolve_id(depended, &self.plugin_driver);
+          let resolved_id = module.resolve_id(depended);
           self.job_queue.push(resolved_id);
         }
       }

@@ -8,17 +8,17 @@ use std::{
 use swc_atoms::JsWord;
 use swc_ecma_ast::{
   ArrowExpr, BindingIdent, BlockStmt, BlockStmtOrExpr, CallExpr, CatchClause, ClassDecl, ClassExpr,
-  ClassMethod, ClassProp, Constructor, Decl, DefaultDecl, ExportDefaultDecl, Expr, FnDecl, FnExpr,
-  ForInStmt, ForOfStmt, ForStmt, Function, Ident, ImportDecl, ImportNamedSpecifier, MemberExpr,
-  MethodProp, ModuleDecl, ModuleItem, ObjectLit, Param, Pat, PatOrExpr, PrivateMethod, SetterProp,
-  Stmt, TaggedTpl, Tpl, VarDecl, VarDeclarator,
+  ClassMethod, ClassProp, Constructor, Decl, DefaultDecl, ExportDefaultDecl, Expr, ExprStmt,
+  FnDecl, FnExpr, ForInStmt, ForOfStmt, ForStmt, Function, Ident, ImportDecl, ImportNamedSpecifier,
+  MemberExpr, MethodProp, ModuleDecl, ModuleItem, ObjectLit, Param, Pat, PatOrExpr, PrivateMethod,
+  SetterProp, Stmt, TaggedTpl, Tpl, VarDecl, VarDeclarator,
 };
-use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith, VisitAllWith};
+use swc_ecma_visit::{noop_visit_mut_type, VisitAllWith, VisitMut, VisitMutWith};
 
 use crate::{ext::MarkExt, graph::Msg, symbol_box::SymbolBox};
 
 use self::{
-  rel::ReExportInfo,
+  rel::RelationInfo,
   scope::{BindType, Scope, ScopeKind},
 };
 
@@ -26,36 +26,41 @@ mod helper;
 pub mod rel;
 pub mod scope;
 mod symbol;
-use rel::{DynImportDesc, ExportDesc, ImportInfo, ReExportDesc};
+use rel::{DynImportDesc, ExportDesc, ReExportDesc};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SideEffect {
+  Call,
+  PropVisit,
+  NonRootScope,
+  GlobalName,
+}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ModuleItemInfo {
   pub declared: HashSet<JsWord>,
   pub reads: HashSet<JsWord>,
   pub writes: HashSet<JsWord>,
+  pub side_effects: Option<SideEffect>,
 }
 
 // Declare symbols
 // Bind symbols. We use Hoister to handle varible hoisting situation.
 // TODO: Fold constants
-#[derive(Clone)]
 pub struct Scanner {
-  pub module_item_infos: HashMap<usize, ModuleItemInfo>,
-  cur_module_item_index: usize,
+  pub statement_infos: Vec<ModuleItemInfo>,
+  pub cur_stmt_index: usize,
   // scope
   pub stacks: Vec<Scope>,
   // mark
   pub ident_type: IdentType,
   // relationships between modules.
-  pub imports: HashMap<JsWord, ImportInfo>,
-  pub import_infos: LinkedHashMap<JsWord, ImportInfo>,
+  pub import_infos: LinkedHashMap<JsWord, RelationInfo>,
   pub local_exports: HashMap<JsWord, ExportDesc>,
   pub re_exports: HashMap<JsWord, ReExportDesc>,
-  pub re_export_infos: LinkedHashMap<JsWord, ReExportInfo>,
+  pub re_export_infos: LinkedHashMap<JsWord, RelationInfo>,
   pub export_all_sources: HashSet<JsWord>,
   pub dynamic_imports: HashSet<DynImportDesc>,
-  pub sources: HashSet<JsWord>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
   pub tx: Sender<Msg>,
 }
@@ -63,18 +68,15 @@ pub struct Scanner {
 impl Scanner {
   pub fn new(symbol_box: Arc<Mutex<SymbolBox>>, tx: Sender<Msg>) -> Self {
     Self {
-      module_item_infos: Default::default(),
-      cur_module_item_index: 0,
+      statement_infos: Default::default(),
+      cur_stmt_index: 0,
       // scope
       stacks: vec![Scope::new(ScopeKind::Fn)],
-      // rel
-      imports: Default::default(),
       local_exports: Default::default(),
       re_exports: Default::default(),
       re_export_infos: Default::default(),
       export_all_sources: Default::default(),
       dynamic_imports: Default::default(),
-      sources: Default::default(),
       import_infos: Default::default(),
       ident_type: IdentType::Ref,
       symbol_box,
@@ -82,81 +84,71 @@ impl Scanner {
     }
   }
 
-  pub fn get_cur_module_item_info(&mut self) -> &mut ModuleItemInfo {
-    self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default())
-  }
-
   pub fn declare(&mut self, id: &mut Ident, kind: BindType) {
     let is_var_decl = matches!(kind, BindType::Var);
+    let finded_scope = self.stacks.iter_mut().enumerate().rev().find(|(_, scope)| {
+      if is_var_decl {
+        scope.kind == ScopeKind::Fn
+      } else {
+        true
+      }
+    });
 
-    debug!(
-      "declare {} {}",
-      match kind {
-        BindType::Let => "let",
-        BindType::Const => "const",
-        BindType::Var => "var",
-        BindType::Import => "import",
-      },
-      id.sym.to_string()
-    );
-
-    self
-      .stacks
-      .iter_mut()
-      .enumerate()
-      .rev()
-      .find(|(_, scope)| {
-        if is_var_decl {
-          scope.kind == ScopeKind::Fn
-        } else {
-          true
-        }
-      })
-      .map(|(idx, scope)| {
-        let name = id.sym.clone();
-        let is_root_scope = idx == 0;
-        if let Some(declared_kind) = scope.declared_symbols_kind.get(&name) {
-          // Valid
-          // var a; var a;
-          assert!(
-            declared_kind == &BindType::Var && is_var_decl,
-            " duplicate name {}",
-            name
-          );
-        }
-        let mark = self.symbol_box.lock().unwrap().new_mark();
-        log::debug!(
-          "[scanner]: new mark {:?} for `{}` is_root_scope: {:#}",
-          mark,
-          id.sym.to_string(),
-          idx == 0
+    if let Some((idx, scope)) = finded_scope {
+      let is_root_scope = idx == 0;
+      let declared_name = &id.sym;
+      if let Some(declared_kind) = scope.declared_symbols_kind.get(declared_name) {
+        // Valid
+        // var a; var a;
+        assert!(
+          declared_kind == &BindType::Var && is_var_decl,
+          " duplicate name {}",
+          declared_name
         );
-        scope
-          .declared_symbols_kind
-          .insert(id.sym.clone().clone(), kind);
-        scope.declared_symbols.insert(id.sym.clone().clone(), mark);
-        id.span.ctxt = mark.as_ctxt();
-        scope.declared_symbols.insert(id.sym.clone(), mark);
-        if is_root_scope {
-          let module_item_info = self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default());
-          // TODO: duplicate detect
-          module_item_info.declared.insert(id.sym.clone());
-        };
-      });
+      }
+
+      let mark = self.symbol_box.lock().unwrap().new_mark();
+
+      log::debug!(
+        "[scanner]: new mark {:?} for `{}` is_root_scope: {:#}",
+        mark,
+        id.sym.to_string(),
+        idx == 0
+      );
+
+      scope
+        .declared_symbols_kind
+        .insert(declared_name.clone(), kind);
+      scope.declared_symbols.insert(declared_name.clone(), mark);
+      scope.declared_symbols.insert(id.sym.clone(), mark);
+      id.span.ctxt = mark.as_ctxt();
+
+      let module_item_info = &mut self.statement_infos[self.cur_stmt_index];
+      if is_root_scope {
+        // TODO: duplicate detect
+        module_item_info.declared.insert(id.sym.clone());
+      };
+    }
   }
 
   pub fn resolve_ctxt_for_ident(&mut self, ident: &mut Ident) {
+    let mut is_finded = false;
     for (idx, scope) in &mut self.stacks.iter_mut().enumerate().rev() {
       let is_root_scope = idx == 0;
       if let Some(mark) = scope.declared_symbols.get(&ident.sym) {
         ident.span.ctxt = mark.as_ctxt();
+        is_finded = true;
         if is_root_scope {
-          let module_item_info = self.module_item_infos.entry(self.cur_module_item_index).or_insert_with(|| Default::default());
+          let stmt_info = &mut self.statement_infos[self.cur_stmt_index];
           // TODO: duplicate detect
-          module_item_info.reads.insert(ident.sym.clone());
+          stmt_info.reads.insert(ident.sym.clone());
         }
         break;
       };
+    }
+    if !is_finded {
+      let stmt_info = &mut self.statement_infos[self.cur_stmt_index];
+      stmt_info.reads.insert(ident.sym.clone());
     }
   }
 
@@ -188,14 +180,35 @@ impl VisitMut for Scanner {
   noop_visit_mut_type!();
 
   fn visit_mut_module(&mut self, node: &mut swc_ecma_ast::Module) {
+    self.statement_infos = vec![Default::default(); node.body.len()];
+    println!("self.module_item_infos {:?}", self.statement_infos);
     let mut hoister = Hoister::new(self);
     node.visit_mut_children_with(&mut hoister);
     node.visit_mut_children_with(self);
   }
 
   fn visit_mut_module_item(&mut self, node: &mut swc_ecma_ast::ModuleItem) {
+    if let ModuleItem::Stmt(stmt) = node {
+      match stmt {
+        Stmt::Expr(expr_stmt) => match expr_stmt.expr.as_ref() {
+          Expr::Call(_) => {
+            self.statement_infos[self.cur_stmt_index].side_effects = Some(SideEffect::Call);
+          }
+          Expr::Object(_) => {
+            self.statement_infos[self.cur_stmt_index].side_effects = Some(SideEffect::PropVisit);
+          }
+          _ => {}
+        },
+        Stmt::Block(_) => {
+          self.statement_infos[self.cur_stmt_index].side_effects = Some(SideEffect::NonRootScope);
+        }
+        _ => {}
+      }
+    }
+
     node.visit_mut_children_with(self);
-    self.cur_module_item_index += 1;
+    self.cur_stmt_index += 1;
+    println!("Add cur_module_item_index, {:?}", self.cur_stmt_index);
   }
 
   fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {
@@ -573,6 +586,7 @@ impl<'me> VisitMut for Hoister<'me> {
   #[inline]
   fn visit_mut_arrow_expr(&mut self, _: &mut ArrowExpr) {}
 
+  // We only care about declarations.
   #[inline]
   fn visit_mut_expr(&mut self, _: &mut Expr) {}
 
@@ -594,11 +608,22 @@ impl<'me> VisitMut for Hoister<'me> {
   #[inline]
   fn visit_mut_setter_prop(&mut self, _: &mut SetterProp) {}
 
+  // css``
   #[inline]
   fn visit_mut_tagged_tpl(&mut self, _: &mut TaggedTpl) {}
 
   #[inline]
   fn visit_mut_tpl(&mut self, _: &mut Tpl) {}
+
+  fn visit_mut_module_item(&mut self, node: &mut swc_ecma_ast::ModuleItem) {
+    node.visit_mut_children_with(self);
+    self.scanner.cur_stmt_index += 1;
+  }
+
+  fn visit_mut_module_items(&mut self, stmts: &mut Vec<ModuleItem>) {
+    stmts.visit_mut_children_with(self);
+    self.scanner.cur_stmt_index = 0;
+  }
 
   fn visit_mut_import_decl(&mut self, n: &mut ImportDecl) {
     let prev = self.ident_type;

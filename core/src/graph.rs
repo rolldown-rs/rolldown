@@ -11,41 +11,36 @@ use crossbeam::{
   channel::{self},
   queue::SegQueue,
 };
-use dashmap::{DashMap, DashSet};
-use once_cell::sync::Lazy;
+use dashmap::DashSet;
 use petgraph::{
   graph::NodeIndex,
-  visit::{DfsPostOrder, EdgeRef},
+  visit::{depth_first_search, DfsEvent, DfsPostOrder, EdgeRef},
   EdgeDirection,
 };
 use rayon::prelude::*;
+use smol_str::SmolStr;
 use swc_atoms::JsWord;
-use swc_common::sync::Lrc;
-use swc_common::SourceMap;
 
 use crate::{
   external_module::ExternalModule,
   module::Module,
-  plugin_driver::PluginDriver,
-  scanner::rel::{ImportInfo, ReExportInfo},
+  scanner::rel::RelationInfo,
   symbol_box::SymbolBox,
-  types::ResolvedId,
+  types::{NormalizedInputOptions, ResolvedId},
   utils::resolve_id,
   worker::Worker,
 };
 
-type ModuleGraph = petgraph::graph::DiGraph<String, Rel>;
+type ModulePetGraph = petgraph::graph::DiGraph<SmolStr, Rel>;
 
-pub struct GraphContainer {
-  pub entries: Vec<String>,
+pub struct Graph {
+  pub input_options: NormalizedInputOptions,
   resolved_entries: Vec<ResolvedId>,
-  pub graph: ModuleGraph,
+  pub graph: ModulePetGraph,
   pub entry_indexs: Vec<NodeIndex>,
   pub ordered_modules: Vec<NodeIndex>,
-  pub plugin_driver: Arc<Mutex<PluginDriver>>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
-  pub modules: Arc<DashMap<String, Module>>,
-  pub id_to_module: HashMap<String, Module>,
+  pub module_by_id: HashMap<SmolStr, Module>,
   pub resolved_ids: HashMap<(Option<JsWord>, JsWord), ResolvedId>,
 }
 
@@ -55,40 +50,40 @@ pub enum ModOrExt {
   Ext(ExternalModule),
 }
 
-
 // Relation between modules
 #[derive(Debug)]
 pub enum Rel {
-  Import(ImportInfo),
-  ReExport(ReExportInfo),
+  Import(RelationInfo),
+  ReExport(RelationInfo),
   ReExportAll,
 }
 
 pub enum Msg {
-  DependencyReference(String, String, Rel),
+  DependencyReference(SmolStr, SmolStr, Rel),
   NewMod(Module),
   NewExtMod(ExternalModule),
 }
 
-impl GraphContainer {
-  pub fn new(entries: Vec<String>) -> Self {
+impl Graph {
+  pub fn new(input_options: NormalizedInputOptions) -> Self {
     Self {
-      entries,
+      input_options,
       resolved_entries: Default::default(),
       entry_indexs: Default::default(),
       ordered_modules: Default::default(),
-      plugin_driver: Arc::new(Mutex::new(PluginDriver::new())),
       resolved_ids: Default::default(),
-      id_to_module: Default::default(),
-      graph: ModuleGraph::new(),
+      module_by_id: Default::default(),
+      graph: ModulePetGraph::new(),
       symbol_box: Arc::new(Mutex::new(SymbolBox::new())),
-      modules: Default::default(),
     }
   }
 
   #[inline]
   pub fn from_single_entry(entry: String) -> Self {
-    Self::new(vec![entry])
+    Self::new(NormalizedInputOptions {
+      input: vec![entry],
+      ..Default::default()
+    })
   }
   // build dependency graph via entry modules.
   fn generate_module_graph(&mut self) {
@@ -96,22 +91,22 @@ impl GraphContainer {
     let idle_thread_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(nums_of_thread));
     let job_queue: Arc<SegQueue<ResolvedId>> = Default::default();
     self.resolved_entries = self
-      .entries
+      .input_options
+      .input
       .iter()
-      .map(|entry| resolve_id(entry, None, false, &self.plugin_driver.lock().unwrap()))
+      .map(|entry| resolve_id(entry, None, false))
       .collect();
 
-    let mut path_to_node_idx: HashMap<String, NodeIndex> = Default::default();
+    let mut path_to_node_idx: HashMap<SmolStr, NodeIndex> = Default::default();
 
     self.resolved_entries.iter().for_each(|resolved_entry_id| {
       let entry_idx = self.graph.add_node(resolved_entry_id.id.clone());
       self.entry_indexs.push(entry_idx);
-      log::debug!("len {}", resolved_entry_id.id.bytes().len());
       path_to_node_idx.insert(resolved_entry_id.id.clone(), entry_idx);
       job_queue.push(resolved_entry_id.clone());
     });
 
-    let processed_id: Arc<DashSet<String>> = Default::default();
+    let processed_id: Arc<DashSet<SmolStr>> = Default::default();
 
     let (tx, rx) = channel::unbounded::<Msg>();
 
@@ -121,7 +116,6 @@ impl GraphContainer {
         tx: tx.clone(),
         job_queue: job_queue.clone(),
         processed_id: processed_id.clone(),
-        plugin_driver: self.plugin_driver.clone(),
         symbol_box: self.symbol_box.clone(),
       };
       std::thread::spawn(move || loop {
@@ -147,7 +141,7 @@ impl GraphContainer {
       if let Ok(job) = rx.try_recv() {
         match job {
           Msg::NewMod(module) => {
-            self.id_to_module.insert(module.id.clone(), module);
+            self.module_by_id.insert(module.id.clone(), module);
           }
           Msg::DependencyReference(from, to, rel) => {
             let from_id = *path_to_node_idx
@@ -167,8 +161,8 @@ impl GraphContainer {
       .entry_indexs
       .iter()
       .map(|idx| &self.graph[*idx])
-      .collect::<HashSet<&String>>();
-    self.id_to_module.par_iter_mut().for_each(|(_key, module)| {
+      .collect::<HashSet<&SmolStr>>();
+    self.module_by_id.par_iter_mut().for_each(|(_key, module)| {
       module.is_user_defined_entry_point = entries_id.contains(&module.id);
     });
   }
@@ -198,14 +192,11 @@ impl GraphContainer {
     self.link_module_exports();
     self.link_module();
     log::debug!("link finished in {}", start.elapsed().as_millis());
-    self.include_statements();
+    self.include();
     log::debug!("build finished in {}", start.elapsed().as_millis());
 
-    log::debug!("modules:\n{:#?}", self.id_to_module);
-    log::debug!(
-      "symbol_box:\n{:#?}",
-      self.symbol_box.lock().unwrap().mark_uf
-    );
+    log::debug!("modules:\n{:#?}", self.module_by_id);
+
     log::debug!(
       "grpah:\n{:?}",
       petgraph::dot::Dot::with_config(&self.graph, &[])
@@ -214,43 +205,92 @@ impl GraphContainer {
     // log::debug!("entry_modules {:?}", Dot::new(&self.graph))
   }
 
-  pub fn include_statements(&mut self) {
-    self.id_to_module.par_iter_mut().for_each(|(_key, module)| {
-      module.include();
+  pub fn include(&mut self) {
+    let treeshake = self.input_options.treeshake;
+    self.module_by_id.par_iter_mut().for_each(|(id, module)| {
+      log::debug!("[treeshake]: with treeshake: {:?}, include all module's side effect stmt for {:?}", treeshake, id);
+      module.include(treeshake);
     });
+    if treeshake {
+      self.resolved_entries.iter().for_each(|resolved_id| {
+        log::debug!("[treeshake]: include entry module's local exports for {:?}", resolved_id.id);
+        let module = self.module_by_id.get_mut(&resolved_id.id.clone()).unwrap();
+        module
+          .local_exports
+          .values()
+          .map(|desc| &desc.local_name)
+          .cloned()
+          .collect::<Vec<_>>()
+          .into_iter()
+          .for_each(|name| {
+            module.include_name(&name);
+          });
+      });
+      depth_first_search(&self.graph, self.entry_indexs.clone(), |evt| {
+        match evt {
+          DfsEvent::Discover(idx, _) => {
+            let edges = self.graph.edges_directed(idx, EdgeDirection::Outgoing);
+            edges.for_each(|edge| {
+              let rel_info = match edge.weight() {
+                Rel::Import(info) => Some(info),
+                Rel::ReExport(info) => Some(info),
+                _ => None,
+              };
+              if let Some(rel_info) = rel_info {
+                let dep_module = self
+                  .module_by_id
+                  .get_mut(&self.graph[edge.target()])
+                  .unwrap();
+
+                rel_info.names.iter().for_each(|specifier| {
+                  if &specifier.original == "*" {
+                    // REFACTOR
+                    dep_module.include_namespace();
+                  } else {
+                    // REFACTOR
+                    dep_module.include_name(&specifier.original);
+                  }
+                })
+              }
+            });
+          }
+          _ => {}
+        }
+      });
+    }
   }
 
   // pub fn get_module
 
   pub fn link_module_exports(&mut self) {
     self.ordered_modules.iter().for_each(|idx| {
-      let mut dep_module_exports = vec![];
+      let module_id = &self.graph[*idx];
+      let module = self.module_by_id.get_mut(module_id).unwrap();
+      // self.module_by_id.get_mut
+      let dep_ids = module
+        .re_export_all_sources
+        .iter()
+        .map(|dep_src| module.resolved_ids.get(dep_src).unwrap().clone().id)
+        .collect::<Vec<_>>();
+      let dep_exports = dep_ids
+        .into_par_iter()
+        .map(|id| self.module_by_id.get(&id).unwrap())
+        .map(|dep_module| (dep_module.id.clone(), dep_module.exports.clone()))
+        .collect::<Vec<_>>();
 
-      if let Some(module) = self.id_to_module.get_mut(&self.graph[*idx]) {
-        let re_export_all_ids = module
-          .re_export_all_sources
-          .clone()
-          .iter()
-          .map(|dep| module.resolve_id(dep, &self.plugin_driver))
-          .collect::<Vec<_>>();
-
-        re_export_all_ids.into_iter().for_each(|resolved_id| {
-          if !resolved_id.external {
-            let re_exported = self.id_to_module.get(&resolved_id.id).unwrap();
-            re_exported.exports.clone().into_iter().for_each(|item| {
-              dep_module_exports.push(item);
-            });
-          }
+      let module = self.module_by_id.get_mut(module_id).unwrap();
+      dep_exports.into_iter().for_each(|(dep_id, dep_exports)| {
+        dep_exports.into_iter().for_each(|(exported_name, mark)| {
+          assert!(
+            !module.exports.contains_key(&exported_name),
+            "duplicate when export {:?} from {:?} in {:?}",
+            exported_name,
+            dep_id,
+            module.id
+          );
+          module.exports.insert(exported_name, mark);
         });
-      }
-
-      if let Some(module) = self.id_to_module.get_mut(&self.graph[*idx]) {
-        dep_module_exports.into_iter().for_each(|(key, mark)| {
-          // TODO: we need to detect duplicate export here.
-          assert!(!module.exports.contains_key(&key));
-          module.exports.insert(key, mark);
-        });
-      }
+      });
     });
   }
 
@@ -263,100 +303,52 @@ impl GraphContainer {
           &self.graph[*idx],
           &self.graph[edge.target()]
         );
+        let rel_info = match edge.weight() {
+          Rel::Import(info) => Some(info),
+          Rel::ReExport(info) => Some(info),
+          _ => None,
+        };
+        if let Some(rel_info) = rel_info {
+          rel_info.names.iter().for_each(|specifier| {
+            let module = self
+              .module_by_id
+              .get_mut(&self.graph[edge.target()])
+              .unwrap();
+            // import _default from './foo'
+            // import * as foo from './foo
+            // export * as foo from './foo
+            if &specifier.original == "default" || &specifier.original == "*" {
+              module.suggest_name(specifier.original.clone(), specifier.used.clone());
+            }
 
-        match edge.weight() {
-          Rel::Import(info) => {
-            info.names.iter().for_each(|imported| {
-              if &imported.original == "default" || &imported.original == "*" {
-                let module = self
-                  .id_to_module
-                  .get_mut(&self.graph[edge.target()])
-                  .unwrap();
-                module.suggest_name(imported.original.clone(), imported.used.clone());
-              }
+            log::debug!(
+              "[graph]: link imported `{:?}` to exported {} in {}",
+              specifier.used,
+              specifier.original,
+              module.id
+            );
 
-              log::debug!(
-                "[graph]: link imported `{:?}` to exported {} in {}",
-                imported.used,
-                imported.original,
-                &self
-                  .id_to_module
-                  .get(&self.graph[edge.target()])
-                  .unwrap()
-                  .id
-              );
+            let dep_module = self
+              .module_by_id
+              .get_mut(&self.graph[edge.target()])
+              .unwrap();
 
-              let imported_module = self
-                .id_to_module
-                .get_mut(&self.graph[edge.target()])
-                .unwrap();
+            if &specifier.original == "*" {
+              // REFACTOR
+              dep_module.include_namespace();
+            }
 
-              if &imported.original == "*" {
-                imported_module.include_namespace();
-              }
+            let dep_module_exported_mark = dep_module
+              .exports
+              .get(&specifier.original)
+              .expect("Not found");
 
-              let imported_module_export_mark = imported_module
-                .exports
-                .get(&imported.original)
-                .expect("Not found");
-
-              self
-                .symbol_box
-                .lock()
-                .unwrap()
-                .union(imported.mark, *imported_module_export_mark);
-
-              log::debug!(
-                "[graph]: link module's import {:?} to related module's mark {:?}",
-                imported,
-                *imported_module_export_mark
-              );
-            });
-          }
-          Rel::ReExport(info) => {
-            info.names.iter().for_each(|re_exported| {
-              if &re_exported.original == "default" || &re_exported.original == "*" {
-                let module = self
-                  .id_to_module
-                  .get_mut(&self.graph[edge.target()])
-                  .unwrap();
-                if &re_exported.used == "default" {
-                  // export { default } from './foo'
-                  // Nothing we could suggest about
-                } else {
-                  module.suggest_name(re_exported.original.clone(), re_exported.used.clone());
-                }
-              }
-
-              let re_exported_module = self
-                .id_to_module
-                .get_mut(&self.graph[edge.target()])
-                .unwrap();
-
-              if &re_exported.original == "*" {
-                re_exported_module.include_namespace();
-              }
-
-              let re_exported_module_export_mark = self
-                .id_to_module
-                .get(&self.graph[edge.target()])
-                .unwrap()
-                .exports
-                .get(&re_exported.original)
-                .expect("Not found");
-              self
-                .symbol_box
-                .lock()
-                .unwrap()
-                .union(re_exported.mark, *re_exported_module_export_mark);
-              log::debug!(
-                "[graph]: link module's re_export {:?} to related module's mark {:?}",
-                re_exported,
-                *re_exported_module_export_mark
-              );
-            });
-          }
-          _ => {}
+            self
+              .symbol_box
+              .lock()
+              .unwrap()
+              .union(specifier.mark, *dep_module_exported_mark);
+          });
         }
       });
     });

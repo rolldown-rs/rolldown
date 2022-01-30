@@ -32,7 +32,7 @@ impl Task for Rolldown {
   type JsValue = String;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    let mut graph = rolldown::graph::GraphContainer::from_single_entry(self.entry.clone());
+    let mut graph = rolldown::graph::Graph::from_single_entry(self.entry.clone());
     graph.build();
     let mut bundle = rolldown::bundle::Bundle::new(graph);
     Ok(bundle.generate())

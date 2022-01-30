@@ -4,32 +4,28 @@ use crate::{
   ext::PathExt, plugin_driver::PluginDriver, types::ResolvedId, utils::is_external_module,
 };
 
+#[inline]
 pub fn resolve_id(
   source: &str,
   importer: Option<&str>,
   preserve_symlinks: bool,
-  plugin_driver: &PluginDriver,
+  // plugin_driver: &PluginDriver,
 ) -> ResolvedId {
-  let plugin_result = resolve_id_via_plugins(source, importer, plugin_driver);
-
-  plugin_result.unwrap_or_else(|| {
-    let res = if importer.is_some() && is_external_module(source) {
-      ResolvedId::new(source.to_string(), true)
+  let res = if importer.is_some() && is_external_module(source) {
+    ResolvedId::new(source.to_string().into(), true)
+  } else {
+    let id = if let Some(importer) = importer {
+      nodejs_path::resolve!(&nodejs_path::dirname(importer), source)
     } else {
-      let id = if let Some(importer) = importer {
-        nodejs_path::resolve!(&nodejs_path::dirname(importer), source)
-      } else {
-        nodejs_path::resolve!(source)
-      };
-      ResolvedId::new(
-        fast_add_js_extension_if_necessary(id, preserve_symlinks),
-        false,
-      )
+      nodejs_path::resolve!(source)
     };
-    res
-  })
+    let id = fast_add_js_extension_if_necessary(id, preserve_symlinks);
+    ResolvedId::new(id.into(), false)
+  };
+  res
 }
 
+#[inline]
 fn resolve_id_via_plugins(
   source: &str,
   importer: Option<&str>,

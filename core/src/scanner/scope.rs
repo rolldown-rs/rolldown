@@ -7,24 +7,14 @@ use swc_ecma_ast::VarDeclKind;
 use super::Scanner;
 
 impl Scanner {
-  pub fn get_cur_scope(&self) -> &Scope {
-    self.stacks.last().unwrap()
-  }
-
-  pub fn into_cur_scope(self) -> Scope {
-    self.stacks.into_iter().next().unwrap()
-  }
-
-  pub fn get_cur_scope_mut(&mut self) -> &mut Scope {
-    self.stacks.last_mut().unwrap()
-  }
-
+  #[inline]
   pub fn push_scope(&mut self, kind: ScopeKind) {
     // let scope = Scope::new(kind, );
     let scope = Scope::new(kind);
     self.stacks.push(scope);
   }
 
+  #[inline]
   pub fn pop_scope(&mut self) {
     self.stacks.pop();
   }

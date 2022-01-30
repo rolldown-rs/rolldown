@@ -1,4 +1,5 @@
 use dashmap::DashSet;
+use smol_str::SmolStr;
 use std::{
   collections::{HashMap, HashSet},
   sync::{Arc, Mutex}, cmp::Ordering,
@@ -21,9 +22,9 @@ use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_visit::VisitMutWith;
 
 pub struct Chunk {
-  pub order_modules: Vec<String>,
+  pub order_modules: Vec<SmolStr>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
-  pub entries: DashSet<String>,
+  pub entries: DashSet<SmolStr>,
   pub exports: HashMap<JsWord, Mark>,
   // SyntaxContext to Safe name mapping
   pub canonical_names: HashMap<SyntaxContext, JsWord>,
@@ -31,10 +32,10 @@ pub struct Chunk {
 
 impl Chunk {
   pub fn new(
-    order_modules: Vec<String>,
+    order_modules: Vec<SmolStr>,
     symbol_box: Arc<Mutex<SymbolBox>>,
     canonical_names: HashMap<SyntaxContext, JsWord>,
-    entries: DashSet<String>,
+    entries: DashSet<SmolStr>,
   ) -> Self {
     Self {
       order_modules,
@@ -45,7 +46,7 @@ impl Chunk {
     }
   }
 
-  pub fn deconflict(&mut self, modules: &mut HashMap<String, Module>) {
+  pub fn deconflict(&mut self, modules: &mut HashMap<SmolStr, Module>) {
     let mut used_names = HashSet::new();
     let mut mark_to_name = HashMap::new();
     let mut entry_first_modules =  modules.values().collect::<Vec<_>>();
@@ -81,13 +82,18 @@ impl Chunk {
         mark_to_names: &mark_to_name,
         symbox_box: self.symbol_box.clone(),
       };
-      module.ast.visit_mut_with(&mut renamer);
+      module.statements.iter_mut().for_each(|stmt| {
+        stmt.node.visit_mut_with(&mut renamer);
+      });
+      module.appended_statments.iter_mut().for_each(|stmt| {
+        stmt.node.visit_mut_with(&mut renamer);
+      });
     });
 
     log::debug!("mark_to_name {:#?}", mark_to_name);
   }
 
-  pub fn render(&mut self, modules: &mut HashMap<String, Module>) -> String {
+  pub fn render(&mut self, modules: &mut HashMap<SmolStr, Module>) -> String {
     // let modules = modules.par_iter_mut().map(|(key, module)| (key.clone(), module))
     modules.par_iter_mut().for_each(|(_key, module)| {
       module.trim_exports();
@@ -100,33 +106,6 @@ impl Chunk {
 
     let mut output = Vec::new();
     let comments = SingleThreadedComments::default();
-
-    // TODO: There's an problem in SWC, so we had to do following. See https://github.com/swc-project/swc/issues/3354.
-    self.order_modules.iter().for_each(|id| {
-      // filter external modules
-      if let Some(module) = modules.get_mut(id) {
-        module.ast.body.insert(
-          0,
-          ModuleItem::Stmt(Stmt::Empty(EmptyStmt {
-            span: swc_common::Span {
-              lo: module.ast.span.lo,
-              hi: module.ast.span.hi,
-              ..Default::default()
-            },
-          })),
-        );
-        comments.add_leading(
-          module.ast.span.lo,
-          Comment {
-            kind: CommentKind::Line,
-            span: DUMMY_SP,
-            text: format!(" {}", module.id),
-          },
-        );
-      }
-    });
-
-    // compiler::COMPILER.cm
 
     let mut emitter = swc_ecma_codegen::Emitter {
       cfg: swc_ecma_codegen::Config { minify: false },
@@ -143,7 +122,7 @@ impl Chunk {
 
     self.order_modules.iter().for_each(|idx| {
       if let Some(module) = modules.get(idx) {
-        emitter.emit_module(&module.ast).unwrap();
+        module.render(&mut emitter);
       }
     });
 

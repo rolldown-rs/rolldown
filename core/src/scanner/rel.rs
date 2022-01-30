@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use swc_atoms::JsWord;
 use swc_common::Mark;
 use swc_ecma_ast::{
-  CallExpr, Decl, DefaultDecl, ExportSpecifier, Expr, Lit, ModuleDecl, Callee, ModuleExportName,
+  CallExpr, Callee, Decl, DefaultDecl, ExportSpecifier, Expr, Lit, ModuleDecl, ModuleExportName,
 };
 
 use crate::{ext::SyntaxContextExt, graph::Rel};
@@ -37,12 +37,12 @@ pub struct DynImportDesc {
 impl Scanner {
   pub fn add_import(&mut self, module_decl: &ModuleDecl) {
     if let ModuleDecl::Import(import_decl) = module_decl {
-      let source = import_decl.src.value.clone();
-      self.sources.insert(source.clone());
+      let source = &import_decl.src.value;
       let import_info = self
         .import_infos
         .entry(source.clone())
-        .or_insert_with(|| ImportInfo::new(source));
+        .or_insert_with(|| RelationInfo::new(source.clone()));
+
       // We separate each specifier to support later tree-shaking.
       import_decl.specifiers.iter().for_each(|specifier| {
         let used;
@@ -88,38 +88,26 @@ impl Scanner {
   }
 
   pub fn add_dynamic_import(&mut self, call_exp: &CallExpr) {
-    if let Callee::Expr(exp) = &call_exp.callee {
-      if let Expr::Ident(id) = exp.as_ref() {
-        let is_callee_import = id.sym.to_string() == "import";
-        // FIXME: should warn about pattern like `import(...a)`
-        if is_callee_import {
-          if let Some(exp) = call_exp
-            .args
-            .get(0)
-            .map(|exp_or_spread| &exp_or_spread.expr)
-          {
-            if let Expr::Lit(Lit::Str(first_param)) = exp.as_ref() {
-              self.dynamic_imports.insert(DynImportDesc {
-                argument: first_param.value.clone(),
-                id: None,
-              });
-            } else {
-              panic!("unkown dynamic import params")
-            }
-          }
+    if let Callee::Import(_import) = &call_exp.callee {
+      // FIXME: should warn about pattern like `import(...a)`
+      if let Some(exp) = call_exp
+        .args
+        .get(0)
+        .map(|exp_or_spread| &exp_or_spread.expr)
+      {
+        if let Expr::Lit(Lit::Str(first_param)) = exp.as_ref() {
+          self.dynamic_imports.insert(DynImportDesc {
+            argument: first_param.value.clone(),
+            id: None,
+          });
+        } else {
+          panic!("unkown dynamic import params")
         }
       }
     }
   }
 
-  pub fn add_export(
-    &mut self,
-    module_decl: &ModuleDecl,
-    // exports: &mut HashMap<JsWord, ExportDesc>,
-    // re_exports: &mut HashMap<JsWord, ReExportDesc>,
-    // export_all_sources: &mut HashSet<JsWord>,
-    // sources: &mut HashSet<JsWord>,
-  ) {
+  pub fn add_export(&mut self, module_decl: &ModuleDecl) {
     match module_decl {
       ModuleDecl::ExportDefaultDecl(node) => {
         let identifier = match &node.decl {
@@ -162,18 +150,18 @@ impl Scanner {
                   self
                     .re_export_infos
                     .entry(source.clone())
-                    .or_insert_with(|| ReExportInfo {
+                    .or_insert_with(|| RelationInfo {
                       source: source.clone(),
                       names: Default::default(),
-                      namespace: None,
                     });
                 // export { name } from './other'
                 let source = source_node.value.clone();
-                self.sources.insert(source.clone());
                 let name = s
                   .exported
                   .as_ref()
-                  .map_or(get_sym_from_module_export(&s.orig).clone(), |id| get_sym_from_module_export(id));
+                  .map_or(get_sym_from_module_export(&s.orig).clone(), |id| {
+                    get_sym_from_module_export(id)
+                  });
                 let re_export_mark = self.symbol_box.lock().unwrap().new_mark();
                 re_export_info.names.insert(Specifier {
                   original: get_sym_from_module_export(&s.orig).clone(),
@@ -196,7 +184,9 @@ impl Scanner {
                 let exported_name: JsWord = s
                   .exported
                   .as_ref()
-                  .map_or(get_sym_from_module_export(&s.orig), |id| get_sym_from_module_export(&id).clone());
+                  .map_or(get_sym_from_module_export(&s.orig), |id| {
+                    get_sym_from_module_export(&id).clone()
+                  });
                 self.local_exports.insert(
                   exported_name.clone(),
                   ExportDesc {
@@ -209,14 +199,14 @@ impl Scanner {
             }
             ExportSpecifier::Namespace(s) => {
               let source = node.src.as_ref().map(|str| str.value.clone()).unwrap();
-              let re_export_info = self
-                .re_export_infos
-                .entry(source.clone())
-                .or_insert_with(|| ReExportInfo {
-                  source: source.clone(),
-                  names: Default::default(),
-                  namespace: None,
-                });
+              let re_export_info =
+                self
+                  .re_export_infos
+                  .entry(source.clone())
+                  .or_insert_with(|| RelationInfo {
+                    source: source.clone(),
+                    names: Default::default(),
+                  });
               let re_export_mark = self.symbol_box.lock().unwrap().new_mark();
 
               re_export_info.names.insert(Specifier {
@@ -225,7 +215,6 @@ impl Scanner {
                 mark: re_export_mark,
               });
               // export * as name from './other'
-              self.sources.insert(source.clone());
               let name = get_sym_from_module_export(&s.name).clone();
               self.re_exports.insert(
                 name.clone(),
@@ -293,7 +282,6 @@ impl Scanner {
       }
       ModuleDecl::ExportAll(node) => {
         // export * from './other'
-        self.sources.insert(node.src.value.clone());
         self.export_all_sources.insert(node.src.value.clone());
       }
       _ => {}
@@ -303,82 +291,40 @@ impl Scanner {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Specifier {
+  /// The original defined name 
   pub original: JsWord,
+  /// The name importer used
   pub used: JsWord,
   pub mark: Mark,
 }
 
-// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-// pub struct ExportDesc {
-//   pub identifier: Option<JsWord>,
-//   pub local_name: JsWord,
-// }
-
-// #[derive(Debug, PartialEq, Eq, Clone)]
-// pub struct ReExportDesc {
-//   pub source: JsWord,
-//   pub names: HashSet<ImportedName>,
-//   pub namespace: Option<Namespace>,
-// }
-
-// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
-// pub struct DynImportDesc {
-//   pub argument: JsWord,
-//   pub id: Option<JsWord>,
-// }
-
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ImportInfo {
+pub struct RelationInfo {
   pub source: JsWord,
   // Empty HashSet represents `import './side-effect'` or `import {} from './foo'`
   pub names: HashSet<Specifier>,
-  // TODO: Represents `import * as foo from './foo'`
-  pub namespace: Option<Namespace>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct ReExportInfo {
-  pub source: JsWord,
-  // Empty HashSet represents `export { } from './side-effect'`
-  pub names: HashSet<Specifier>,
-  // TODO: Represents `export * as foo from './foo'`
-  pub namespace: Option<Namespace>,
-}
-
-impl From<ImportInfo> for Rel {
-  fn from(info: ImportInfo) -> Self {
+impl From<RelationInfo> for Rel {
+  fn from(info: RelationInfo) -> Self {
     Self::Import(info)
   }
 }
 
-impl From<ReExportInfo> for Rel {
-  fn from(info: ReExportInfo) -> Self {
-    Self::ReExport(info)
-  }
-}
-
-impl ImportInfo {
+impl RelationInfo {
   pub fn new(source: JsWord) -> Self {
     Self {
       source,
       names: Default::default(),
-      namespace: Default::default(),
+      // namespace: Default::default(),
     }
   }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct Namespace {
-  name: JsWord,
-  mark: Mark,
-  used_prop: Vec<JsWord>,
-  // all: bool,
-}
-
-
+#[inline]
 fn get_sym_from_module_export(module_export_name: &ModuleExportName) -> JsWord {
   match module_export_name {
     ModuleExportName::Ident(i) => i.sym.clone(),
-    _ => panic!("")
+    _ => panic!(""),
   }
 }

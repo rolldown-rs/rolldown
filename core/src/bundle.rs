@@ -4,11 +4,11 @@ use crate::{chunk::Chunk, graph};
 
 #[non_exhaustive]
 pub struct Bundle {
-  pub graph_container: graph::GraphContainer,
+  pub graph_container: graph::Graph,
 }
 
 impl Bundle {
-  pub fn new(graph: graph::GraphContainer) -> Self {
+  pub fn new(graph: graph::Graph) -> Self {
     Self {
       graph_container: graph,
     }
@@ -35,6 +35,6 @@ impl Bundle {
       exports: Default::default(),
     };
 
-    chunk.render(&mut self.graph_container.id_to_module)
+    chunk.render(&mut self.graph_container.module_by_id)
   }
 }

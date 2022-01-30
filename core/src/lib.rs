@@ -17,5 +17,5 @@ pub use swc_ecma_ast as ast;
 pub mod ext;
 pub mod plugin_driver;
 pub mod symbol_box;
-pub mod plugins;
 pub mod compiler;
+pub mod statement;

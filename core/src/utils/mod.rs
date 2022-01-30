@@ -1,14 +1,12 @@
 pub mod ast_sugar;
 pub mod name_helpers;
-use std::error::Error;
 use std::path::Path;
 
 use swc_ecma_ast::EsVersion;
 
-use swc_common::sync::Lrc;
 use swc_common::{
   errors::{ColorConfig, Handler},
-  FileName, SourceMap,
+  FileName,
 };
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 use swc_ecma_parser::{EsConfig, TsConfig};
@@ -30,6 +28,7 @@ pub mod path {
   }
 }
 
+#[inline]
 pub fn is_external_module(source: &str) -> bool {
   source.starts_with("node:") || (!nodejs_path::is_absolute(source) && !source.starts_with("."))
 }

@@ -1,4 +1,4 @@
-use rolldown::{graph::GraphContainer, bundle::Bundle};
+use rolldown::{graph::Graph, bundle::Bundle};
 
 #[test]
 fn basic() {
@@ -7,7 +7,7 @@ fn basic() {
   // let mut graph = GraphContainer::from_single_entry("../testcase/custom/samples/default-export/main.js".to_owned());
   // let mut graph = GraphContainer::from_single_entry("./tests/fixtures/conflicted/index.js".to_owned());
   let mut graph =
-    GraphContainer::from_single_entry("./tests/fixtures/conflicted/index.js".to_owned());
+    Graph::from_single_entry("./tests/fixtures/conflicted/index.js".to_owned());
   // let mut graph =
   //   GraphContainer::from_single_entry("../node_modules/lodash-es/lodash.js".to_owned());
   graph.build();

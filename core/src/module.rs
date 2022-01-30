@@ -1,23 +1,27 @@
 use crate::ast;
-use crate::plugin_driver::PluginDriver;
-use crate::scanner::ModuleItemInfo;
+use crate::scanner::{ModuleItemInfo, SideEffect};
+use crate::statement::Statement;
 use crate::symbol_box::SymbolBox;
 use crate::utils::{ast_sugar, resolve_id};
+use petgraph::visit::Walker;
+use rayon::prelude::*;
 use std::collections::HashMap;
 
-use std::sync::Mutex;
 use std::{collections::HashSet, hash::Hash};
 
 use ast::{
   BindingIdent, ClassDecl, Decl, DefaultDecl, Expr, FnDecl, ModuleDecl, ModuleItem, Pat, Stmt,
   VarDecl, VarDeclarator,
 };
+use smol_str::SmolStr;
 use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
 use swc_common::{Mark, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::Ident;
 
+use swc_ecma_codegen::text_writer::WriteJs;
+use swc_ecma_codegen::Emitter;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
 
 use crate::scanner::rel::{ExportDesc, ReExportDesc};
@@ -31,25 +35,30 @@ pub struct Namespace {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Module {
-  pub ast: ast::Module,
-  pub id: String,
+  // resolved_ids is using for caching.
+  pub resolved_ids: HashMap<JsWord, ResolvedId>,
+  pub statements: Vec<Statement>,
+  pub appended_statments: Vec<Statement>,
+  pub definations: HashMap<JsWord, usize>,
+  pub id: SmolStr,
   pub local_exports: HashMap<JsWord, ExportDesc>,
   pub re_exports: HashMap<JsWord, ReExportDesc>,
   pub re_export_all_sources: HashSet<JsWord>,
   pub exports: HashMap<JsWord, Mark>,
   pub declared_symbols: HashMap<JsWord, Mark>,
   pub imported_symbols: HashMap<JsWord, Mark>,
-  pub resolved_ids: HashMap<JsWord, ResolvedId>,
   pub suggested_names: HashMap<JsWord, JsWord>,
   pub namespace: Namespace,
   pub is_user_defined_entry_point: bool,
-  pub module_item_infos: HashMap<usize, ModuleItemInfo>,
+  // pub module_item_infos: Vec<ModuleItemInfo>,
 }
 
 impl Module {
-  pub fn new(id: String) -> Self {
+  pub fn new(id: SmolStr) -> Self {
     Self {
-      ast: ast::Module::dummy(),
+      definations: Default::default(),
+      statements: Default::default(),
+      appended_statments: Default::default(),
       id,
       local_exports: Default::default(),
       re_export_all_sources: Default::default(),
@@ -61,7 +70,6 @@ impl Module {
       imported_symbols: Default::default(),
       namespace: Default::default(),
       is_user_defined_entry_point: false,
-      module_item_infos: Default::default(),
     }
   }
 
@@ -97,28 +105,94 @@ impl Module {
       });
   }
 
-  pub fn include(&mut self) {
-    self
-      .ast
+  pub fn set_ast(&mut self, ast: ast::Module, module_item_infos: Vec<ModuleItemInfo>) {
+    self.statements = ast
       .body
-      .retain(|module_item| !matches!(module_item, ModuleItem::ModuleDecl(ModuleDecl::Import(_))));
+      .into_iter()
+      .zip(module_item_infos.into_iter())
+      .enumerate()
+      .map(|(idx, (node, info))| {
+        let mut stmt = Statement::new(node);
+        info.declared.iter().for_each(|rely| {
+          self.definations.insert(rely.clone(), idx);
+        });
+        stmt.writes = info.writes;
+        stmt.reads = info.reads;
+        stmt.side_effect = info.side_effects;
+        if stmt.side_effect.is_none() {
+          let has_unkown_name = stmt
+            .reads
+            .iter()
+            .chain(stmt.writes.iter())
+            .any(|name| !self.declared_symbols.contains_key(name));
+          if has_unkown_name {
+            stmt.side_effect = Some(SideEffect::GlobalName)
+          }
+        }
+
+        stmt
+      })
+      .collect();
+  }
+
+  pub fn include_name(&mut self, name: &JsWord) {
+    if let Some(stmt_idx) = self.definations.get(name).map(|s| *s) {
+      let stmt = &mut self.statements[stmt_idx];
+      if !stmt.included {
+        stmt.include();
+        log::debug!("include_name {}", name);
+        stmt
+          .reads
+          .iter()
+          .chain(stmt.writes.iter())
+          .cloned()
+          .collect::<HashSet<_>>()
+          .iter()
+          .for_each(|name| self.include_name(name));
+      }
+    } else {
+      log::debug!("unkown define name {:?}", name)
+    }
+  }
+
+  pub fn include(&mut self, only_side_effects: bool) {
+    if only_side_effects {
+      self
+        .statements
+        .par_iter_mut()
+        .filter(|stmt| stmt.side_effect.is_some())
+        .map(|stmt| {
+          stmt.include();
+          stmt
+        })
+        .flat_map(|stmt| vec![&stmt.declared, &stmt.reads, &stmt.writes])
+        .flatten()
+        // .filter_map(|name| *self.definations.get(name).expect(&format!("include name {:?} in {:?}", name, self.id)))
+        // TODO: we might need to check if the name is in the scope
+        .filter_map(|name| self.definations.get(name))
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .for_each(|idx| {
+          log::debug!("include_stmt {:?}", self.statements[idx]);
+          self.statements[idx].include();
+        });
+    } else {
+      self.statements.par_iter_mut().for_each(|stmt| {
+        stmt.include();
+      });
+    }
   }
 
   pub fn suggest_name(&mut self, name: JsWord, suggested: JsWord) {
     self.suggested_names.insert(name, suggested);
   }
 
-  pub fn resolve_id(
-    &mut self,
-    dep_src: &JsWord,
-    plugin_driver: &Mutex<PluginDriver>,
-  ) -> ResolvedId {
+  pub fn resolve_id(&mut self, dep_src: &JsWord) -> ResolvedId {
     self
       .resolved_ids
       .entry(dep_src.clone())
-      .or_insert_with_key(|key| {
-        resolve_id(key, Some(&self.id), false, &plugin_driver.lock().unwrap())
-      })
+      .or_insert_with_key(|key| resolve_id(key, Some(&self.id), false))
       .clone()
   }
 
@@ -132,17 +206,23 @@ impl Module {
   }
 
   pub fn trim_exports(&mut self) {
-    let body = self.ast.body.take();
-    self.ast.body = body
+    self.statements = self
+      .statements
+      .take()
       .into_iter()
-      .map(|module_item| fold_export_decl_to_decl(module_item, self))
+      .map(|mut stmt| {
+        stmt.node = fold_export_decl_to_decl(stmt.node.take(), self);
+        stmt
+      })
       .collect();
   }
 
   pub fn generate_exports(&mut self) {
     if !self.exports.is_empty() {
       let export_decl = ast_sugar::export(&self.exports);
-      self.ast.body.push(ModuleItem::ModuleDecl(export_decl));
+      let mut s = Statement::new(ModuleItem::ModuleDecl(export_decl));
+      s.include();
+      self.statements.push(s);
     }
   }
 
@@ -179,13 +259,32 @@ impl Module {
           .map(|(exported_name, mark)| (exported_name.clone(), *mark))
           .collect::<Vec<_>>(),
       );
+      let mut s = Statement::new(ast::ModuleItem::Stmt(namespace.clone()));
+      s.include();
+      let idx = self.statements.len();
+      self
+        .definations
+        .insert(suggested_default_export_name.clone(), idx);
+      s.declared.insert(suggested_default_export_name.clone());
+      self.statements.push(s);
       self
         .declared_symbols
         .insert(suggested_default_export_name, self.namespace.mark);
-      self.ast.body.push(ModuleItem::Stmt(namespace));
-      // self.ast.body.push();
       self.namespace.included = true;
     }
+  }
+
+  pub fn render<W: WriteJs>(&self, emitter: &mut Emitter<'_, W>) {
+    self.statements.iter().for_each(|stmt| {
+      if stmt.included {
+        emitter.emit_module_item(&stmt.node).unwrap();
+      }
+    });
+    self.appended_statments.iter().for_each(|stmt| {
+      if stmt.included {
+        emitter.emit_module_item(&stmt.node).unwrap();
+      }
+    });
   }
 }
 
@@ -201,7 +300,8 @@ impl std::fmt::Debug for Module {
       .field("imported_symbols", &self.imported_symbols)
       .field("resolved_ids", &self.resolved_ids)
       .field("suggested_names", &self.suggested_names)
-      .field("module_item_infos", &self.module_item_infos)
+      .field("statements", &self.statements)
+      .field("definations", &self.definations)
       .finish()
   }
 }
