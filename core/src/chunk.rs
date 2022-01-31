@@ -49,7 +49,7 @@ impl Chunk {
   pub fn deconflict(&mut self, modules: &mut HashMap<SmolStr, Module>) {
     let mut used_names = HashSet::new();
     let mut mark_to_name = HashMap::new();
-    let mut entry_first_modules =  modules.values().collect::<Vec<_>>();
+    let mut entry_first_modules =  self.order_modules.iter().map(|id| modules.get(id).unwrap()).collect::<Vec<_>>();
     entry_first_modules.sort_by(|a, b| {
       if a.is_user_defined_entry_point && !b.is_user_defined_entry_point {
         Ordering::Less
@@ -59,8 +59,14 @@ impl Chunk {
         Ordering::Equal
       }
     });
+    println!("entry_first_modules {:#?}", entry_first_modules.iter().map(|m| &m.id).collect::<Vec<_>>());
     entry_first_modules.into_iter().for_each(|module| {
-      module.declared_symbols.iter().for_each(|(name, mark)| {
+      let mut declared_symbols = module.declared_symbols.iter().collect::<Vec<_>>();
+      // declared_symbols.sort_by(|a, b| {
+      //   a.0.cmp(b.0)
+      // });
+      // println!("declared_symbols {:#?}", declared_symbols.iter().map(|s| s.0.as_ref()).collect::<Vec<_>>());
+      declared_symbols.into_iter().for_each(|(name, mark)| {
         let root_mark = self.symbol_box.lock().unwrap().find_root(*mark);
         if mark_to_name.contains_key(&root_mark) {
         } else {

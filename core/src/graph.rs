@@ -24,7 +24,7 @@ use swc_atoms::JsWord;
 use crate::{
   external_module::ExternalModule,
   module::Module,
-  scanner::rel::RelationInfo,
+  scanner::rel::{self, RelationInfo},
   symbol_box::SymbolBox,
   types::{NormalizedInputOptions, ResolvedId},
   utils::resolve_id,
@@ -55,7 +55,18 @@ pub enum ModOrExt {
 pub enum Rel {
   Import(RelationInfo),
   ReExport(RelationInfo),
-  ReExportAll,
+  ReExportAll(usize),
+}
+
+impl Rel {
+  #[inline]
+  fn get_order(&self) -> usize {
+    match self {
+      Self::Import(info) => info.order,
+      Self::ReExport(info) => info.order,
+      Self::ReExportAll(order) => *order,
+    }
+  }
 }
 
 pub enum Msg {
@@ -168,14 +179,35 @@ impl Graph {
   }
 
   fn sort_modules(&mut self) {
-    let mut dfs = DfsPostOrder::new(&self.graph, self.entry_indexs[0]);
     let mut ordered_modules = vec![];
-    // FIXME: The impalementation isn't correct. It’s not idempotent.
-    while let Some(node) = dfs.next(&self.graph) {
-      ordered_modules.push(node);
+    let entry = self.entry_indexs[0];
+    let mut visited = HashSet::new();
+    let mut stack = vec![entry];
+    while let Some(node_idx) = stack.pop() {
+      if !visited.contains(&node_idx) {
+        stack.push(node_idx);
+        print!("visit {}\n", self.graph[node_idx]);
+        visited.insert(node_idx);
+        let edges = self.graph.edges_directed(node_idx, EdgeDirection::Outgoing);
+        let mut rels = edges.map(|e| e).collect::<Vec<_>>();
+        rels.sort_by(|a, b| a.weight().get_order().cmp(&b.weight().get_order()));
+        rels
+          .into_iter()
+          .rev()
+          .filter(|edge| !visited.contains(&edge.target()))
+          .for_each(|edge| stack.push(edge.target()));
+      } else {
+        print!("end {}\n", self.graph[node_idx]);
+        ordered_modules.push(node_idx);
+      }
+      // ordered_modules = ordered_modules.into_iter().rev().collect()
     }
+
+    // while let Some(node) = dfs.next(&self.graph) {
+    //   ordered_modules.push(node);
+    // }
     self.ordered_modules = ordered_modules;
-    log::debug!("self.ordered_modules {:?}", self.ordered_modules);
+    // println!("self.ordered_modules {:#?}", ordered_modules.iter().map(|idx| &self.graph[*idx]).collect::<Vec<_>>());
   }
 
   pub fn build(&mut self) {
@@ -208,12 +240,19 @@ impl Graph {
   pub fn include(&mut self) {
     let treeshake = self.input_options.treeshake;
     self.module_by_id.par_iter_mut().for_each(|(id, module)| {
-      log::debug!("[treeshake]: with treeshake: {:?}, include all module's side effect stmt for {:?}", treeshake, id);
+      log::debug!(
+        "[treeshake]: with treeshake: {:?}, include all module's side effect stmt for {:?}",
+        treeshake,
+        id
+      );
       module.include(treeshake);
     });
     if treeshake {
       self.resolved_entries.iter().for_each(|resolved_id| {
-        log::debug!("[treeshake]: include entry module's local exports for {:?}", resolved_id.id);
+        log::debug!(
+          "[treeshake]: include entry module's local exports for {:?}",
+          resolved_id.id
+        );
         let module = self.module_by_id.get_mut(&resolved_id.id.clone()).unwrap();
         module
           .local_exports

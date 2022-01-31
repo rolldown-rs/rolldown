@@ -48,6 +48,7 @@ pub struct ModuleItemInfo {
 // Bind symbols. We use Hoister to handle varible hoisting situation.
 // TODO: Fold constants
 pub struct Scanner {
+  pub cur_relation_order: usize,
   pub statement_infos: Vec<ModuleItemInfo>,
   pub cur_stmt_index: usize,
   // scope
@@ -59,7 +60,7 @@ pub struct Scanner {
   pub local_exports: HashMap<JsWord, ExportDesc>,
   pub re_exports: HashMap<JsWord, ReExportDesc>,
   pub re_export_infos: LinkedHashMap<JsWord, RelationInfo>,
-  pub export_all_sources: HashSet<JsWord>,
+  pub export_all_sources: HashSet<(JsWord, usize)>,
   pub dynamic_imports: HashSet<DynImportDesc>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
   pub tx: Sender<Msg>,
@@ -68,6 +69,7 @@ pub struct Scanner {
 impl Scanner {
   pub fn new(symbol_box: Arc<Mutex<SymbolBox>>, tx: Sender<Msg>) -> Self {
     Self {
+      cur_relation_order: 0,
       statement_infos: Default::default(),
       cur_stmt_index: 0,
       // scope
@@ -181,7 +183,6 @@ impl VisitMut for Scanner {
 
   fn visit_mut_module(&mut self, node: &mut swc_ecma_ast::Module) {
     self.statement_infos = vec![Default::default(); node.body.len()];
-    println!("self.module_item_infos {:?}", self.statement_infos);
     let mut hoister = Hoister::new(self);
     node.visit_mut_children_with(&mut hoister);
     node.visit_mut_children_with(self);
@@ -208,7 +209,6 @@ impl VisitMut for Scanner {
 
     node.visit_mut_children_with(self);
     self.cur_stmt_index += 1;
-    println!("Add cur_module_item_index, {:?}", self.cur_stmt_index);
   }
 
   fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {

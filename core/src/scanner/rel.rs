@@ -41,7 +41,11 @@ impl Scanner {
       let import_info = self
         .import_infos
         .entry(source.clone())
-        .or_insert_with(|| RelationInfo::new(source.clone()));
+        .or_insert_with(|| {
+          let rel = RelationInfo::new(source.clone(), self.cur_relation_order);
+          self.cur_relation_order += 1;
+          rel
+        });
 
       // We separate each specifier to support later tree-shaking.
       import_decl.specifiers.iter().for_each(|specifier| {
@@ -150,9 +154,14 @@ impl Scanner {
                   self
                     .re_export_infos
                     .entry(source.clone())
-                    .or_insert_with(|| RelationInfo {
-                      source: source.clone(),
-                      names: Default::default(),
+                    .or_insert_with(|| {
+                      let rel = RelationInfo {
+                        source: source.clone(),
+                        names: Default::default(),
+                        order: self.cur_relation_order,
+                      };
+                      self.cur_relation_order += 1;
+                      rel
                     });
                 // export { name } from './other'
                 let source = source_node.value.clone();
@@ -203,9 +212,14 @@ impl Scanner {
                 self
                   .re_export_infos
                   .entry(source.clone())
-                  .or_insert_with(|| RelationInfo {
-                    source: source.clone(),
-                    names: Default::default(),
+                  .or_insert_with(|| {
+                    let rel = RelationInfo {
+                      source: source.clone(),
+                      names: Default::default(),
+                      order: self.cur_relation_order,
+                    };
+                    self.cur_relation_order += 1;
+                    rel
                   });
               let re_export_mark = self.symbol_box.lock().unwrap().new_mark();
 
@@ -282,7 +296,8 @@ impl Scanner {
       }
       ModuleDecl::ExportAll(node) => {
         // export * from './other'
-        self.export_all_sources.insert(node.src.value.clone());
+        self.export_all_sources.insert((node.src.value.clone(), self.cur_relation_order));
+        self.cur_relation_order += 1;
       }
       _ => {}
     }
@@ -303,6 +318,7 @@ pub struct RelationInfo {
   pub source: JsWord,
   // Empty HashSet represents `import './side-effect'` or `import {} from './foo'`
   pub names: HashSet<Specifier>,
+  pub order: usize,
 }
 
 impl From<RelationInfo> for Rel {
@@ -312,10 +328,11 @@ impl From<RelationInfo> for Rel {
 }
 
 impl RelationInfo {
-  pub fn new(source: JsWord) -> Self {
+  pub fn new(source: JsWord, order: usize) -> Self {
     Self {
       source,
       names: Default::default(),
+      order,
       // namespace: Default::default(),
     }
   }

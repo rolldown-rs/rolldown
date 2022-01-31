@@ -76,20 +76,24 @@ impl Worker {
               .unwrap();
           });
         scanner.export_all_sources.iter().for_each(|re_exported| {
-          let resolved_id = module.resolve_id(re_exported);
+          let resolved_id = module.resolve_id(&re_exported.0);
           self
             .tx
             .send(Msg::DependencyReference(
               module.id.clone(),
               resolved_id.id,
-              Rel::ReExportAll,
+              Rel::ReExportAll(re_exported.1),
             ))
             .unwrap();
         });
 
         module.local_exports = scanner.local_exports;
         module.re_exports = scanner.re_exports;
-        module.re_export_all_sources = scanner.export_all_sources;
+        module.re_export_all_sources = scanner
+          .export_all_sources
+          .into_iter()
+          .map(|s| s.0)
+          .collect();
         {
           let root_scope = scanner.stacks.into_iter().next().unwrap();
           let declared_symbols = root_scope.declared_symbols;
