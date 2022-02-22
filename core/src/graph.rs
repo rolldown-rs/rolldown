@@ -12,17 +12,11 @@ use crossbeam::{
   queue::SegQueue,
 };
 use dashmap::{DashMap, DashSet};
-use petgraph::{
-  graph::NodeIndex,
-  visit::{EdgeRef},
-  EdgeDirection,
-};
+use petgraph::{graph::NodeIndex, visit::EdgeRef, EdgeDirection};
 use rayon::prelude::*;
 use smol_str::SmolStr;
 
 use swc_common::Mark;
-
-
 
 use crate::{
   external_module::ExternalModule,

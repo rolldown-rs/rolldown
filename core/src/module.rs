@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::{collections::HashSet, hash::Hash};
 
 use ast::{
@@ -22,7 +22,7 @@ use swc_common::util::take::Take;
 use swc_common::{Mark, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::Ident;
 
-use crate::{utils::is_decl_or_stmt};
+use crate::utils::is_decl_or_stmt;
 use swc_ecma_codegen::text_writer::WriteJs;
 use swc_ecma_codegen::Emitter;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
@@ -228,7 +228,8 @@ impl Module {
     if !self.namespace.included {
       let suggested_default_export_name = self
         .suggested_names
-        .get(&"*".into()).cloned()
+        .get(&"*".into())
+        .cloned()
         .unwrap_or_else(|| {
           (get_valid_name(nodejs_path::parse(&self.id).name) + "namespace").into()
         });
@@ -326,7 +327,8 @@ pub fn fold_export_decl_to_decl(
   let mut get_default_ident = || {
     let suggested_default_export_name = module
       .suggested_names
-      .get(&"default".into()).cloned()
+      .get(&"default".into())
+      .cloned()
       .unwrap_or_else(|| get_valid_name(nodejs_path::parse(&module.id).name).into());
 
     assert!(!module

@@ -177,8 +177,7 @@ impl Scanner {
                   used: name.clone(),
                   mark: re_export_mark,
                 });
-                self.statement_infos[self.cur_stmt_index].export_mark =
-                  Some(re_export_mark);
+                self.statement_infos[self.cur_stmt_index].export_mark = Some(re_export_mark);
                 self.re_exports.insert(
                   name.clone(),
                   ReExportDesc {

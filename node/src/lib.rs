@@ -50,8 +50,5 @@ pub fn rolldown(entry: String, config: Buffer) -> Result<AsyncTask<Rolldown>> {
   let options: RolldownOptions = serde_json::from_slice(config_slice)
     .map_err(|err| napi::Error::new(napi::Status::InvalidArg, format!("{}", err)))?;
 
-  Ok(AsyncTask::new(Rolldown {
-    entry,
-    options,
-  }))
+  Ok(AsyncTask::new(Rolldown { entry, options }))
 }
