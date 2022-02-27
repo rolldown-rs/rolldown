@@ -2,6 +2,7 @@ use dashmap::DashSet;
 use smol_str::SmolStr;
 use std::{
   collections::{HashMap, HashSet},
+  fmt::format,
   path::Path,
   sync::{Arc, Mutex},
   time::Instant,
@@ -18,7 +19,7 @@ use crate::{
 
 use rayon::prelude::*;
 
-use swc_common::comments::SingleThreadedComments;
+use swc_common::comments::{Comment, Comments, SingleThreadedComments};
 use swc_ecma_ast::EsVersion;
 use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_visit::VisitMutWith;
@@ -127,6 +128,19 @@ impl Chunk {
 
     let mut output = Vec::new();
     let comments = SingleThreadedComments::default();
+
+    self.order_modules.iter().for_each(|idx| {
+      if let Some(module) = modules.get_mut(idx) {
+        comments.add_leading(
+          module.module_span.lo,
+          Comment {
+            kind: swc_common::comments::CommentKind::Line,
+            span: module.module_span.clone(),
+            text: format!(" {}", &module.id),
+          },
+        )
+      }
+    });
 
     let mut emitter = swc_ecma_codegen::Emitter {
       cfg: swc_ecma_codegen::Config {

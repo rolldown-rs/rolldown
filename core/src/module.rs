@@ -12,14 +12,14 @@ use std::sync::Arc;
 use std::{collections::HashSet, hash::Hash};
 
 use ast::{
-  BindingIdent, ClassDecl, Decl, DefaultDecl, Expr, FnDecl, ModuleDecl, ModuleItem, Pat, Stmt,
-  VarDecl, VarDeclarator,
+  BindingIdent, ClassDecl, Decl, DefaultDecl, EmptyStmt, Expr, FnDecl, ModuleDecl, ModuleItem, Pat,
+  Stmt, VarDecl, VarDeclarator,
 };
 use smol_str::SmolStr;
 use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
-use swc_common::{Mark, SyntaxContext, DUMMY_SP};
+use swc_common::{BytePos, Mark, Span, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::Ident;
 
 use crate::utils::is_decl_or_stmt;
@@ -52,6 +52,7 @@ pub struct Module {
   pub suggested_names: HashMap<JsWord, JsWord>,
   pub namespace: Namespace,
   pub is_user_defined_entry_point: bool,
+  pub module_span: Span,
   // pub module_item_infos: Vec<ModuleItemInfo>,
 }
 
@@ -71,6 +72,7 @@ impl Module {
       imported_symbols: Default::default(),
       namespace: Default::default(),
       is_user_defined_entry_point: false,
+      module_span: Take::dummy(),
     }
   }
 
@@ -109,6 +111,7 @@ impl Module {
     module_item_infos: Vec<ModuleItemInfo>,
     mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
   ) {
+    self.module_span = ast.span;
     self.statements = ast
       .body
       .into_iter()
@@ -272,6 +275,11 @@ impl Module {
   }
 
   pub fn render<W: WriteJs>(&self, emitter: &mut Emitter<'_, W>) {
+    let comment_node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt {
+      span: self.module_span.clone(),
+    }));
+    emitter.emit_module_item(&comment_node).unwrap();
+
     self.statements.iter().for_each(|stmt| {
       if stmt.included {
         emitter.emit_module_item(&stmt.node).unwrap();
