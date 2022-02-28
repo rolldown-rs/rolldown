@@ -40,5 +40,6 @@ fn main() {
   });
 
   log::info!("output:\n{:#?}", output);
-  println!("gen() finished in {}", start.elapsed().as_millis());
+  println!("{}", output[0].get_content());
+  // println!("gen() finished in {}", start.elapsed().as_millis());
 }

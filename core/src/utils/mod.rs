@@ -1,7 +1,9 @@
 pub mod ast_sugar;
 pub mod name_helpers;
 pub mod side_effect;
+mod lcp;
 use std::path::Path;
+pub use lcp::*;
 
 use swc_ecma_ast::{EsVersion, ModuleDecl, ModuleItem};
 

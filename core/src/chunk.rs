@@ -1,3 +1,4 @@
+use crate::utils::lcp_of_array;
 use dashmap::DashSet;
 use smol_str::SmolStr;
 use std::{
@@ -15,6 +16,7 @@ use crate::{
   structs::{OutputChunk, RenderedChunk},
   symbol_box::SymbolBox,
   types::NormalizedOutputOptions,
+  utils::lcp,
 };
 
 use rayon::prelude::*;
@@ -45,7 +47,7 @@ impl Chunk {
     }
   }
 
-  pub fn deconflict(&mut self, modules: &mut HashMap<SmolStr, Module>) {
+  pub fn de_conflict(&mut self, modules: &mut HashMap<SmolStr, Module>) {
     let start = Instant::now();
 
     let mut used_names = HashSet::new();
@@ -122,10 +124,16 @@ impl Chunk {
       prune_start.elapsed().as_millis()
     );
 
-    self.deconflict(modules);
+    self.de_conflict(modules);
 
     let emit_start = Instant::now();
-
+    let common_prefix = lcp_of_array(&self.order_modules);
+    let common_prefix_len = if let Ok(p) = std::env::current_dir().map(|p| p.display().to_string())
+    {
+      lcp(&p, &common_prefix).len()
+    } else {
+      common_prefix.len()
+    };
     let mut output = Vec::new();
     let comments = SingleThreadedComments::default();
 
@@ -133,7 +141,7 @@ impl Chunk {
       if let Some(module) = modules.get_mut(idx) {
         let mut text = String::with_capacity(module.id.len() + 1);
         text.push_str(" ");
-        text.push_str(&module.id);
+        text.push_str(&module.id[common_prefix_len..]);
         comments.add_leading(
           module.module_span.lo,
           Comment {
