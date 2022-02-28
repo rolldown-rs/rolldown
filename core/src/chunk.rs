@@ -131,12 +131,15 @@ impl Chunk {
 
     self.order_modules.iter().for_each(|idx| {
       if let Some(module) = modules.get_mut(idx) {
+        let mut text = String::with_capacity(module.id.len() + 1);
+        text.push_str(" ");
+        text.push_str(&module.id);
         comments.add_leading(
           module.module_span.lo,
           Comment {
             kind: swc_common::comments::CommentKind::Line,
             span: module.module_span.clone(),
-            text: format!(" {}", &module.id),
+            text,
           },
         )
       }
