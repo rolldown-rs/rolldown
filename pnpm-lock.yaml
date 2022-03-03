@@ -11,7 +11,7 @@ importers:
       '@typescript-eslint/parser': ^5.2.0
       ava: ^3.15.0
       benny: ^3.7.1
-      chalk: ^4.1.2
+      chalk: ^5.0.0
       esbuild: ^0.14.0
       eslint: ^8.1.0
       eslint-config-prettier: ^8.3.0
@@ -34,7 +34,7 @@ importers:
       '@typescript-eslint/parser': 5.3.0_eslint@8.1.0+typescript@4.4.4
       ava: 3.15.0
       benny: 3.7.1
-      chalk: 4.1.2
+      chalk: 5.0.0
       esbuild: 0.14.0
       eslint: 8.1.0
       eslint-config-prettier: 8.3.0_eslint@8.1.0
@@ -1851,6 +1851,11 @@ packages:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
+    dev: true
+
+  /chalk/5.0.0:
+    resolution: {integrity: sha512-/duVOqst+luxCQRKEo4bNxinsOQtMP80ZYm7mMqzuh5PociNL0PvmHFvREJ9ueYL2TxlHjBcmLCdmocx9Vg+IQ==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
     dev: true
 
   /chardet/0.7.0:
