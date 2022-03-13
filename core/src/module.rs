@@ -339,6 +339,8 @@ pub fn fold_export_decl_to_decl(
       .cloned()
       .unwrap_or_else(|| get_valid_name(nodejs_path::parse(&module.id).name).into());
 
+    assert_ne!(&suggested_default_export_name, "default");
+
     assert!(!module
       .declared_symbols
       .contains_key(&suggested_default_export_name));

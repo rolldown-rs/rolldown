@@ -335,7 +335,11 @@ impl Graph {
             // import * as foo from './foo
             // export * as foo from './foo
             if &specifier.original == "default" || &specifier.original == "*" {
-              dep_module.suggest_name(specifier.original.clone(), specifier.used.clone());
+              // There is only one case where `specifier.used` is not a valid varible name.
+              // Special case ` export { default } from ...`
+              if &specifier.used != "default" {
+                dep_module.suggest_name(specifier.original.clone(), specifier.used.clone());
+              }
             }
 
             log::debug!(
