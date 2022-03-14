@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 // use crate::graph::DepNode;
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct ExternalModule {
   pub id: String,
   pub module_side_effects: bool,

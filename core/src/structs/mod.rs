@@ -38,6 +38,6 @@ impl RolldownOutput {
 
 #[derive(Debug, Hash, Clone)]
 pub enum ModOrExt {
-  Mod(Module),
+  Mod(Box<Module>),
   Ext(ExternalModule),
 }

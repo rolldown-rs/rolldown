@@ -15,7 +15,7 @@ use crate::{ext::SyntaxContextExt, symbol_box::SymbolBox};
 #[derive(Debug)]
 pub struct Renamer<'me> {
   pub mark_to_names: &'me HashMap<Mark, String>,
-  pub symbox_box: Arc<Mutex<SymbolBox>>,
+  pub symbol_box: Arc<Mutex<SymbolBox>>,
 }
 
 impl<'me> VisitMut for Renamer<'me> {
@@ -41,7 +41,7 @@ impl<'me> VisitMut for Renamer<'me> {
 
   fn visit_mut_ident(&mut self, node: &mut Ident) {
     let mark = node.span.ctxt.as_mark();
-    let root_mark = self.symbox_box.lock().unwrap().find_root(mark);
+    let root_mark = self.symbol_box.lock().unwrap().find_root(mark);
     if let Some(name) = self.mark_to_names.get(&root_mark) {
       node.sym = name.to_string().into()
     }
@@ -59,25 +59,21 @@ impl<'me> VisitMut for Renamer<'me> {
   }
 
   fn visit_mut_object_lit(&mut self, node: &mut ObjectLit) {
-    node
-      .props
-      .iter_mut()
-      .for_each(|prop_or_spread| match prop_or_spread {
-        PropOrSpread::Prop(prop) => {
-          if prop.is_shorthand() {
-            if let Prop::Shorthand(ident) = prop.as_mut() {
-              let mut key = ident.clone();
-              key.span.ctxt = SyntaxContext::empty();
-              let replacement = Box::new(Prop::KeyValue(KeyValueProp {
-                key: PropName::Ident(key),
-                value: Box::new(Expr::Ident(ident.clone())),
-              }));
-              *prop = replacement;
-            }
+    node.props.iter_mut().for_each(|prop_or_spread| {
+      if let PropOrSpread::Prop(prop) = prop_or_spread {
+        if prop.is_shorthand() {
+          if let Prop::Shorthand(ident) = prop.as_mut() {
+            let mut key = ident.clone();
+            key.span.ctxt = SyntaxContext::empty();
+            let replacement = Box::new(Prop::KeyValue(KeyValueProp {
+              key: PropName::Ident(key),
+              value: Box::new(Expr::Ident(ident.clone())),
+            }));
+            *prop = replacement;
           }
         }
-        _ => {}
-      });
+      }
+    });
     node.visit_mut_children_with(self);
   }
 

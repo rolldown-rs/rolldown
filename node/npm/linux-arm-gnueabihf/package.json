@@ -1,12 +1,26 @@
 {
   "name": "@rolldown/core-linux-arm-gnueabihf",
   "version": "0.1.2",
-  "os": ["linux"],
-  "cpu": ["arm"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm"
+  ],
   "main": "rolldown.linux-arm-gnueabihf.node",
-  "files": ["rolldown.linux-arm-gnueabihf.node"],
+  "files": [
+    "rolldown.linux-arm-gnueabihf.node"
+  ],
   "description": "Rollup Rust implementation with 100% API compatible",
-  "keywords": ["Rollup", "webpack", "parcel", "bundle", "swc", "napi-rs", "node-api"],
+  "keywords": [
+    "Rollup",
+    "webpack",
+    "parcel",
+    "bundle",
+    "swc",
+    "napi-rs",
+    "node-api"
+  ],
   "author": "LongYinan <lynweklm@gmail.com>",
   "homepage": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",

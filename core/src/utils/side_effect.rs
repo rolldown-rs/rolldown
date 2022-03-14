@@ -1,4 +1,4 @@
-use swc_ecma_ast::{Expr, ModuleDecl, ModuleItem, PatOrExpr, Stmt};
+use swc_ecma_ast::{Expr, ModuleDecl, ModuleItem, OptChainBase, OptChainExpr, PatOrExpr, Stmt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SideEffect {
@@ -13,96 +13,106 @@ pub enum SideEffect {
 
 fn detect_side_effect_of_expr(expr: &Expr) -> Option<SideEffect> {
   match expr {
-    Expr::This(_ThisExpr) => Some(SideEffect::VisitThis),
-    Expr::Array(ArrayLit) => ArrayLit.elems.iter().find_map(|expr_or_spread| {
+    Expr::This(_) => Some(SideEffect::VisitThis),
+    Expr::Array(array_lit) => array_lit.elems.iter().find_map(|expr_or_spread| {
       expr_or_spread
         .as_ref()
         .and_then(|exp| detect_side_effect_of_expr(exp.expr.as_ref()))
     }),
-    Expr::Object(_ObjectLit) => Some(SideEffect::Todo),
+    Expr::Object(_) => Some(SideEffect::Todo),
 
-    Expr::Fn(_FnExpr) => None,
+    Expr::Fn(_) => None,
 
-    Expr::Unary(_UnaryExpr) => Some(SideEffect::Todo),
+    Expr::Unary(_) => Some(SideEffect::Todo),
 
-    /// `++v`, `--v`, `v++`, `v--`
-    Expr::Update(UpdateExpr) => detect_side_effect_of_expr(UpdateExpr.arg.as_ref()),
+    // `++v`, `--v`, `v++`, `v--`
+    Expr::Update(update_expr) => detect_side_effect_of_expr(update_expr.arg.as_ref()),
 
-    Expr::Bin(BinExpr) => [BinExpr.left.as_ref(), BinExpr.right.as_ref()]
+    Expr::Bin(bin_expr) => [bin_expr.left.as_ref(), bin_expr.right.as_ref()]
       .into_iter()
       .find_map(detect_side_effect_of_expr),
 
-    Expr::Assign(AssignExpr) => match &AssignExpr.left {
+    Expr::Assign(assign_expr) => match &assign_expr.left {
       PatOrExpr::Expr(expr) => detect_side_effect_of_expr(expr.as_ref()),
       PatOrExpr::Pat(_) => Some(SideEffect::Todo),
     },
-    Expr::Member(_MemberExpr) => Some(SideEffect::VisitProp),
-    Expr::SuperProp(_SuperPropExpr) => Some(SideEffect::VisitProp),
+    Expr::Member(_) => Some(SideEffect::VisitProp),
+    Expr::SuperProp(_) => Some(SideEffect::VisitProp),
 
     // true ? 'a' : 'b'
-    Expr::Cond(CondExpr) => [
-      CondExpr.test.as_ref(),
-      CondExpr.cons.as_ref(),
-      CondExpr.alt.as_ref(),
+    Expr::Cond(cond_expr) => [
+      cond_expr.test.as_ref(),
+      cond_expr.cons.as_ref(),
+      cond_expr.alt.as_ref(),
     ]
     .into_iter()
     .find_map(detect_side_effect_of_expr),
 
-    Expr::Call(_CallExpr) => Some(SideEffect::FnCall),
+    Expr::Call(_) => Some(SideEffect::FnCall),
     // `new Cat()`
-    Expr::New(_NewExpr) => Some(SideEffect::FnCall),
+    Expr::New(_) => Some(SideEffect::FnCall),
 
-    Expr::Seq(SeqExpr) => SeqExpr
+    Expr::Seq(seq_expr) => seq_expr
       .exprs
       .iter()
       .find_map(|expr| detect_side_effect_of_expr(expr)),
 
-    Expr::Ident(_Ident) => None,
+    Expr::Ident(_) => None,
 
-    Expr::Lit(_Lit) => None,
+    Expr::Lit(_) => None,
 
-    Expr::Tpl(Tpl) => Tpl
+    Expr::Tpl(tpl) => tpl
       .exprs
       .iter()
       .find_map(|expr| detect_side_effect_of_expr(expr)),
 
-    Expr::TaggedTpl(_TaggedTpl) => Some(SideEffect::FnCall),
+    Expr::TaggedTpl(_) => Some(SideEffect::FnCall),
 
-    Expr::Arrow(_ArrowExpr) => None,
+    Expr::Arrow(_) => None,
 
-    Expr::Class(_ClassExpr) => None,
+    Expr::Class(_) => None,
 
-    Expr::Yield(_YieldExpr) => Some(SideEffect::Todo),
+    Expr::Yield(_) => Some(SideEffect::Todo),
 
-    Expr::MetaProp(_MetaPropExpr) => Some(SideEffect::Todo),
+    Expr::MetaProp(_) => Some(SideEffect::Todo),
 
-    Expr::Await(_AwaitExpr) => Some(SideEffect::Todo),
+    Expr::Await(_) => Some(SideEffect::Todo),
 
-    Expr::Paren(ParenExpr) => detect_side_effect_of_expr(ParenExpr.expr.as_ref()),
+    Expr::Paren(paren_expr) => detect_side_effect_of_expr(paren_expr.expr.as_ref()),
 
-    Expr::JSXMember(_JSXMemberExpr) => Some(SideEffect::Todo),
+    Expr::JSXMember(_) => Some(SideEffect::Todo),
 
-    Expr::JSXNamespacedName(_JSXNamespacedName) => Some(SideEffect::Todo),
+    Expr::JSXNamespacedName(_) => Some(SideEffect::Todo),
 
-    Expr::JSXEmpty(_JSXEmptyExpr) => Some(SideEffect::Todo),
+    Expr::JSXEmpty(_) => Some(SideEffect::Todo),
 
-    Expr::JSXElement(_s) => Some(SideEffect::Todo),
+    Expr::JSXElement(_) => Some(SideEffect::Todo),
 
-    Expr::JSXFragment(_JSXFragment) => Some(SideEffect::Todo),
+    Expr::JSXFragment(_) => Some(SideEffect::Todo),
 
-    Expr::TsTypeAssertion(_TsTypeAssertion) => None,
+    Expr::TsTypeAssertion(_) => None,
 
-    Expr::TsConstAssertion(_TsConstAssertion) => None,
+    Expr::TsConstAssertion(_) => None,
 
-    Expr::TsNonNull(_TsNonNullExpr) => None,
+    Expr::TsNonNull(_) => None,
 
-    Expr::TsAs(_TsAsExpr) => None,
+    Expr::TsAs(_) => None,
 
-    Expr::PrivateName(_PrivateName) => Some(SideEffect::Todo),
+    Expr::TsInstantiation(_) => None,
 
-    Expr::OptChain(OptChainExpr) => detect_side_effect_of_expr(OptChainExpr.expr.as_ref()),
+    Expr::PrivateName(_) => Some(SideEffect::Todo),
 
-    Expr::Invalid(_Invalid) => Some(SideEffect::Todo),
+    Expr::OptChain(OptChainExpr {
+      base: OptChainBase::Member(member),
+      ..
+    }) => detect_side_effect_of_expr(&Expr::Member(member.clone())),
+
+    Expr::OptChain(OptChainExpr {
+      base: OptChainBase::Call(_),
+      ..
+    }) => None,
+
+    Expr::Invalid(_) => Some(SideEffect::Todo),
   }
 }
 
@@ -112,40 +122,40 @@ pub fn detect_side_effect(item: &ModuleItem) -> Option<SideEffect> {
     ModuleItem::ModuleDecl(ModuleDecl::Import(_)) => Some(SideEffect::Import),
     ModuleItem::Stmt(stmt) => match stmt {
       // `{ }`
-      Stmt::Block(_BlockStmt) => Some(SideEffect::NonTopLevel),
+      Stmt::Block(_) => Some(SideEffect::NonTopLevel),
       // `;`
-      Stmt::Empty(_EmptyStmt) => None,
+      Stmt::Empty(_) => None,
       // `debugger`
-      Stmt::Debugger(_DebuggerStmt) => Some(SideEffect::Todo),
+      Stmt::Debugger(_) => Some(SideEffect::Todo),
       // `with(foo) {}`
-      Stmt::With(_WithStmt) => Some(SideEffect::Todo),
+      Stmt::With(_) => Some(SideEffect::Todo),
       // `return`
-      Stmt::Return(_ReturnStmt) => Some(SideEffect::Todo),
+      Stmt::Return(_) => Some(SideEffect::Todo),
       // s
-      Stmt::Labeled(_LabeledStmt) => Some(SideEffect::Todo),
+      Stmt::Labeled(_) => Some(SideEffect::Todo),
 
-      Stmt::Break(_BreakStmt) => Some(SideEffect::Todo),
+      Stmt::Break(_) => Some(SideEffect::Todo),
 
-      Stmt::Continue(_ContinueStmt) => Some(SideEffect::Todo),
+      Stmt::Continue(_) => Some(SideEffect::Todo),
 
-      Stmt::If(_IfStmt) => Some(SideEffect::Todo),
+      Stmt::If(_) => Some(SideEffect::Todo),
 
-      Stmt::Switch(_SwitchStmt) => Some(SideEffect::Todo),
+      Stmt::Switch(_) => Some(SideEffect::Todo),
 
-      Stmt::Throw(_ThrowStmt) => Some(SideEffect::Todo),
-      Stmt::Try(_TryStmt) => Some(SideEffect::Todo),
+      Stmt::Throw(_) => Some(SideEffect::Todo),
+      Stmt::Try(_) => Some(SideEffect::Todo),
 
-      Stmt::While(_WhileStmt) => Some(SideEffect::Todo),
+      Stmt::While(_) => Some(SideEffect::Todo),
 
-      Stmt::DoWhile(_DoWhileStmt) => Some(SideEffect::Todo),
+      Stmt::DoWhile(_) => Some(SideEffect::Todo),
 
-      Stmt::For(_ForStmt) => Some(SideEffect::Todo),
+      Stmt::For(_) => Some(SideEffect::Todo),
 
-      Stmt::ForIn(_ForInStmt) => Some(SideEffect::Todo),
+      Stmt::ForIn(_) => Some(SideEffect::Todo),
 
-      Stmt::ForOf(_ForOfStmt) => Some(SideEffect::Todo),
-      Stmt::Decl(_Decl) => None,
-      Stmt::Expr(ExprStmt) => detect_side_effect_of_expr(ExprStmt.expr.as_ref()),
+      Stmt::ForOf(_) => Some(SideEffect::Todo),
+      Stmt::Decl(_) => None,
+      Stmt::Expr(expr_stmt) => detect_side_effect_of_expr(expr_stmt.expr.as_ref()),
     },
     _ => None,
   }

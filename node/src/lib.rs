@@ -17,13 +17,13 @@ static ALLOC: mimalloc_rust::GlobalMiMalloc = mimalloc_rust::GlobalMiMalloc;
 #[derive(Debug)]
 pub struct Rolldown {
   entry: String,
-  options: RolldownOptions,
+  _options: RolldownOptions,
 }
 
 #[derive(Debug, Deserialize)]
 struct RolldownOptions {
   #[serde(default)]
-  sourcemap: bool,
+  _sourcemap: bool,
 }
 
 #[napi]
@@ -50,5 +50,8 @@ pub fn rolldown(entry: String, config: Buffer) -> Result<AsyncTask<Rolldown>> {
   let options: RolldownOptions = serde_json::from_slice(config_slice)
     .map_err(|err| napi::Error::new(napi::Status::InvalidArg, format!("{}", err)))?;
 
-  Ok(AsyncTask::new(Rolldown { entry, options }))
+  Ok(AsyncTask::new(Rolldown {
+    entry,
+    _options: options,
+  }))
 }

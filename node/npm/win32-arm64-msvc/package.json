@@ -1,12 +1,26 @@
 {
   "name": "@rolldown/core-win32-arm64-msvc",
   "version": "0.1.2",
-  "os": ["win32"],
-  "cpu": ["arm64"],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "main": "rolldown.win32-arm64-msvc.node",
-  "files": ["rolldown.win32-arm64-msvc.node"],
+  "files": [
+    "rolldown.win32-arm64-msvc.node"
+  ],
   "description": "Rollup Rust implementation with 100% API compatible",
-  "keywords": ["Rollup", "webpack", "parcel", "bundle", "swc", "napi-rs", "node-api"],
+  "keywords": [
+    "Rollup",
+    "webpack",
+    "parcel",
+    "bundle",
+    "swc",
+    "napi-rs",
+    "node-api"
+  ],
   "author": "LongYinan <lynweklm@gmail.com>",
   "homepage": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",

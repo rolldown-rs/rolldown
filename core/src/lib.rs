@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+
 pub mod bundle;
 pub mod chunk;
 pub mod external_module;
@@ -79,7 +81,7 @@ fn write_output_file(output_file: &RolldownOutput, output_options: &NormalizedOu
     output_file.get_file_name()
   );
 
-  std::fs::create_dir_all(nodejs_path::dirname(&file_name));
+  std::fs::create_dir_all(nodejs_path::dirname(&file_name)).unwrap();
   log::info!("file_name {}", file_name);
   std::fs::write(file_name, output_file.get_content()).unwrap();
 }

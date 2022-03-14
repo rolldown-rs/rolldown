@@ -8,7 +8,7 @@ use rolldown::{
 // use rolldown::graph::GraphContainer;
 
 fn main() {
-  let start = Instant::now();
+  let _start = Instant::now();
   env_logger::init();
   // let mut graph = GraphContainer::from_single_entry("./tests/fixtures/preact/index.js".to_owned());
   // let mut graph = GraphContainer::from_single_entry("../../three.js/src/Three.js".to_owned());
@@ -30,7 +30,6 @@ fn main() {
       // "./tests/fixtures/tree-shaking/index.js".to_owned(),
     ],
     treeshake: true,
-    ..Default::default()
   });
   let output = rolldown_build.write(NormalizedOutputOptions {
     // entry_file_names: "[name].js".to_string(),

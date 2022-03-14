@@ -3,10 +3,8 @@ use dashmap::DashSet;
 use smol_str::SmolStr;
 use std::{
   collections::{HashMap, HashSet},
-  fmt::format,
   path::Path,
   sync::{Arc, Mutex},
-  time::Instant,
 };
 
 use crate::{
@@ -47,59 +45,43 @@ impl Chunk {
     }
   }
 
-  pub fn de_conflict(&mut self, modules: &mut HashMap<SmolStr, Module>) {
-    let start = Instant::now();
-
+  pub fn de_conflict(&mut self, modules: &mut HashMap<SmolStr, Box<Module>>) {
     let mut used_names = HashSet::new();
     let mut mark_to_name = HashMap::new();
 
-    // Deconflict from the entry module to keep namings as simple as possible
-    let reverse_ordered_modules = self
+    // De-conflict from the entry module to keep namings as simple as possible
+    self
       .order_modules
       .iter()
       .map(|id| modules.get(id).unwrap())
       .rev()
-      .collect::<Vec<_>>();
-
-    reverse_ordered_modules.into_iter().for_each(|module| {
-      module.declared_symbols.iter().for_each(|(name, mark)| {
-        let root_mark = self.symbol_box.lock().unwrap().find_root(*mark);
-        if let std::collections::hash_map::Entry::Vacant(e) = mark_to_name.entry(root_mark) {
-          let original_name = name.to_string();
-          let mut name = name.to_string();
-          let mut count = 0;
-          while used_names.contains(&name) {
-            name = format!("{}${}", original_name, count);
-            count += 1;
+      .for_each(|module| {
+        module.declared_symbols.iter().for_each(|(name, mark)| {
+          let root_mark = self.symbol_box.lock().unwrap().find_root(*mark);
+          if let std::collections::hash_map::Entry::Vacant(e) = mark_to_name.entry(root_mark) {
+            let original_name = name.to_string();
+            let mut name = name.to_string();
+            let mut count = 0;
+            while used_names.contains(&name) {
+              name = format!("{}${}", original_name, count);
+              count += 1;
+            }
+            e.insert(name.clone());
+            used_names.insert(name);
+          } else {
           }
-          e.insert(name.clone());
-          used_names.insert(name);
-        } else {
-        }
+        });
       });
-    });
-
-    let rename_start = Instant::now();
 
     modules.par_iter_mut().for_each(|(_, module)| {
       module.statements.iter_mut().for_each(|stmt| {
         let mut renamer = Renamer {
           mark_to_names: &mark_to_name,
-          symbox_box: self.symbol_box.clone(),
+          symbol_box: self.symbol_box.clone(),
         };
         stmt.node.visit_mut_with(&mut renamer);
       });
     });
-
-    println!(
-      "Chunk#deconflict()-rename finished in {}",
-      rename_start.elapsed().as_millis()
-    );
-
-    println!(
-      "Chunk#deconflict() finished in {}",
-      start.elapsed().as_millis()
-    );
 
     log::debug!("mark_to_name {:#?}", mark_to_name);
   }
@@ -107,11 +89,9 @@ impl Chunk {
   pub fn render(
     &mut self,
     options: &NormalizedOutputOptions,
-    modules: &mut HashMap<SmolStr, Module>,
+    modules: &mut HashMap<SmolStr, Box<Module>>,
   ) -> RenderedChunk {
     assert!(!self.id.is_empty());
-    let prune_start = Instant::now();
-    let render_chunk_start = Instant::now();
     modules.par_iter_mut().for_each(|(_key, module)| {
       module.trim_exports();
       if module.is_user_defined_entry_point {
@@ -119,14 +99,8 @@ impl Chunk {
       }
     });
 
-    println!(
-      "prune modules finished in {}",
-      prune_start.elapsed().as_millis()
-    );
-
     self.de_conflict(modules);
 
-    let emit_start = Instant::now();
     let common_prefix = lcp_of_array(&self.order_modules);
     let common_prefix_len = if let Ok(p) = std::env::current_dir().map(|p| p.display().to_string())
     {
@@ -140,13 +114,13 @@ impl Chunk {
     self.order_modules.iter().for_each(|idx| {
       if let Some(module) = modules.get_mut(idx) {
         let mut text = String::with_capacity(module.id.len() + 1);
-        text.push_str(" ");
+        text.push(' ');
         text.push_str(&module.id[common_prefix_len..]);
         comments.add_leading(
           module.module_span.lo,
           Comment {
             kind: swc_common::comments::CommentKind::Line,
-            span: module.module_span.clone(),
+            span: module.module_span,
             text,
           },
         )
@@ -174,22 +148,10 @@ impl Chunk {
       }
     });
 
-    let rendered_chunk = RenderedChunk {
+    RenderedChunk {
       code: String::from_utf8(output).unwrap(),
       file_name: self.id.clone().into(),
-    };
-
-    println!(
-      "Chunk#render()-emit finished in {}",
-      emit_start.elapsed().as_millis()
-    );
-
-    println!(
-      "Chunk#render() finished in {}",
-      render_chunk_start.elapsed().as_millis()
-    );
-
-    rendered_chunk
+    }
   }
 
   pub fn get_chunk_info_with_file_names(&self) -> OutputChunk {
@@ -201,17 +163,7 @@ impl Chunk {
 
   #[inline]
   pub fn get_fallback_chunk_name(&self) -> &str {
-    // if (this.manualChunkAlias) {
-    // 	return this.manualChunkAlias;
-    // }
-    // if (this.dynamicName) {
-    // 	return this.dynamicName;
-    // }
-    // if (this.fileName) {
-    // 	return getAliasName(this.fileName);
-    // }
     get_alias_name(self.order_modules.last().unwrap())
-    // return getAliasName(this.orderedModules[this.orderedModules.length - 1].id);
   }
 
   #[inline]

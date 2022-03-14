@@ -1,15 +1,15 @@
 use smol_str::SmolStr;
 
-pub fn lcp_of_array(arr: &Vec<SmolStr>) -> String {
-  assert!(arr.len() > 0);
+pub fn lcp_of_array(arr: &[SmolStr]) -> String {
+  assert!(!arr.is_empty());
   if arr.len() == 1 {
     return arr[0].to_string();
   }
 
   let mut longest = arr[0].clone();
-  for i in 1..arr.len() {
-    longest = lcp(longest.as_str(), arr[i].as_str()).into();
-  }
+  arr.iter().skip(1).for_each(|item| {
+    longest = lcp(longest.as_str(), item.as_str()).into();
+  });
   longest.to_string()
 }
 pub fn lcp<'a>(a: &'a str, b: &'a str) -> &'a str {

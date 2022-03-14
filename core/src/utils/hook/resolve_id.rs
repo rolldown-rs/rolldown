@@ -25,7 +25,7 @@ pub fn resolve_id(
 }
 
 #[inline]
-fn resolve_id_via_plugins(
+pub fn resolve_id_via_plugins(
   source: &str,
   importer: Option<&str>,
   plugin_driver: &PluginDriver,
@@ -41,7 +41,7 @@ fn fast_add_js_extension_if_necessary(mut file: String, _preserve_symlinks: bool
   file
 }
 
-fn add_js_extension_if_necessary(file: &str, preserve_symlinks: bool) -> String {
+pub fn add_js_extension_if_necessary(file: &str, preserve_symlinks: bool) -> String {
   let found = find_file(Path::new(file), preserve_symlinks);
   found.unwrap_or_else(|| {
     let found = find_file(Path::new(&(file.to_string() + "#.mjs")), preserve_symlinks);
@@ -52,11 +52,11 @@ fn add_js_extension_if_necessary(file: &str, preserve_symlinks: bool) -> String 
   })
 }
 
-fn find_file(file: &Path, preserve_symlinks: bool) -> Option<String> {
+pub fn find_file(file: &Path, preserve_symlinks: bool) -> Option<String> {
   let metadata = std::fs::metadata(file);
   if let Ok(metadata) = metadata {
     if !preserve_symlinks && metadata.is_symlink() {
-      find_file(&std::fs::canonicalize(file).unwrap(), preserve_symlinks)
+      find_file(&std::fs::canonicalize(file).ok()?, preserve_symlinks)
     } else if (preserve_symlinks && metadata.is_symlink()) || metadata.is_file() {
       let name: OsString = nodejs_path::basename!(&file.as_str()).into();
       let files = std::fs::read_dir(&nodejs_path::dirname(&file.as_str())).unwrap();

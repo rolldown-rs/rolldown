@@ -19,7 +19,7 @@ use smol_str::SmolStr;
 use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
-use swc_common::{BytePos, Mark, Span, SyntaxContext, DUMMY_SP};
+use swc_common::{Mark, Span, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::Ident;
 
 use crate::utils::is_decl_or_stmt;
@@ -276,7 +276,7 @@ impl Module {
 
   pub fn render<W: WriteJs>(&self, emitter: &mut Emitter<'_, W>) {
     let comment_node = ModuleItem::Stmt(Stmt::Empty(EmptyStmt {
-      span: self.module_span.clone(),
+      span: self.module_span,
     }));
     emitter.emit_module_item(&comment_node).unwrap();
 

@@ -1,16 +1,15 @@
 use std::{
+  fs,
   sync::{Arc, Mutex},
-  time::Instant,
 };
 
 use crossbeam::{channel::Sender, queue::SegQueue};
 use dashmap::{DashMap, DashSet};
-use rayon::prelude::*;
-
 use smol_str::SmolStr;
 use swc_common::Mark;
 use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_visit::VisitMutWith;
+use thiserror::Error;
 
 use crate::{
   graph::{Msg, Rel},
@@ -18,8 +17,18 @@ use crate::{
   scanner::{scope::BindType, Scanner},
   symbol_box::SymbolBox,
   types::ResolvedId,
-  utils::{load, parse_file},
+  utils::parse_file,
 };
+
+#[derive(Error, Debug)]
+pub enum RolldownError {
+  #[error("[IO error `{0}`]")]
+  IO(std::io::Error),
+  #[error("[Crossbeam error `{0}`]")]
+  Channel(crossbeam::channel::SendError<Msg>),
+  #[error("[Mutex error]")]
+  Lock,
+}
 
 pub struct Worker {
   pub symbol_box: Arc<Mutex<SymbolBox>>,
@@ -30,7 +39,6 @@ pub struct Worker {
 }
 
 impl Worker {
-  #[inline]
   fn fetch_job(&self) -> Option<ResolvedId> {
     self
       .job_queue
@@ -42,47 +50,38 @@ impl Worker {
       })
   }
 
-  #[inline]
-  pub fn run(&mut self) {
+  pub fn run(&mut self) -> Result<(), RolldownError> {
     if let Some(resolved_id) = self.fetch_job() {
       if resolved_id.external {
         // TODO: external module
       } else {
-        let start = Instant::now();
-
         let mut module = Module::new(resolved_id.id.clone());
-        let load_start = Instant::now();
-        let source = load(&resolved_id.id);
-        let load_end = load_start.elapsed().as_millis();
-        let parse_start = Instant::now();
+        let id: &str = &resolved_id.id;
+        let source = fs::read_to_string(id).map_err(RolldownError::IO)?;
         let mut ast = parse_file(source, &module.id);
-        let parse_end = parse_start.elapsed().as_millis();
-
-        let pre_analyze_start = Instant::now();
         self.pre_analyze_imported_module(&mut module, &ast);
-        let pre_analyze_end = pre_analyze_start.elapsed().as_millis();
 
         let mut scanner = Scanner::new(self.symbol_box.clone(), self.tx.clone());
-        let scanner_start = Instant::now();
         ast.visit_mut_with(&mut scanner);
-        let scanne_end = scanner_start.elapsed().as_millis();
 
-        let process_start = Instant::now();
-        scanner.import_infos.iter().for_each(|(imported, info)| {
-          let resolved_id = module.resolve_id(imported);
-          self
-            .tx
-            .send(Msg::DependencyReference(
-              module.id.clone(),
-              resolved_id.id,
-              info.clone().into(),
-            ))
-            .unwrap();
-        });
+        scanner
+          .import_infos
+          .iter()
+          .try_for_each(|(imported, info)| {
+            let resolved_id = module.resolve_id(imported);
+            self
+              .tx
+              .send(Msg::DependencyReference(
+                module.id.clone(),
+                resolved_id.id,
+                info.clone().into(),
+              ))
+              .map_err(RolldownError::Channel)
+          })?;
         scanner
           .re_export_infos
           .iter()
-          .for_each(|(re_exported, info)| {
+          .try_for_each(|(re_exported, info)| {
             let resolved_id = module.resolve_id(re_exported);
             self
               .tx
@@ -91,19 +90,22 @@ impl Worker {
                 resolved_id.id,
                 info.clone().into(),
               ))
-              .unwrap();
-          });
-        scanner.export_all_sources.iter().for_each(|re_exported| {
-          let resolved_id = module.resolve_id(&re_exported.0);
-          self
-            .tx
-            .send(Msg::DependencyReference(
-              module.id.clone(),
-              resolved_id.id,
-              Rel::ReExportAll(re_exported.1),
-            ))
-            .unwrap();
-        });
+              .map_err(RolldownError::Channel)
+          })?;
+        scanner
+          .export_all_sources
+          .iter()
+          .try_for_each(|re_exported| {
+            let resolved_id = module.resolve_id(&re_exported.0);
+            self
+              .tx
+              .send(Msg::DependencyReference(
+                module.id.clone(),
+                resolved_id.id,
+                Rel::ReExportAll(re_exported.1),
+              ))
+              .map_err(RolldownError::Channel)
+          })?;
 
         module.local_exports = scanner.local_exports;
         module.re_exports = scanner.re_exports;
@@ -125,7 +127,11 @@ impl Worker {
             }
           });
         }
-        module.namespace.mark = self.symbol_box.lock().unwrap().new_mark();
+        module.namespace.mark = self
+          .symbol_box
+          .lock()
+          .map_err(|_| RolldownError::Lock)?
+          .new_mark();
 
         module.set_statements(ast, scanner.statement_infos, self.mark_to_stmt.clone());
 
@@ -134,30 +140,16 @@ impl Worker {
         module.link_local_exports();
 
         log::debug!("[worker]: emit module {:#?}", module);
-        self.tx.send(Msg::NewMod(module)).unwrap();
-
-        if start.elapsed().as_millis() > 100 {
-          println!("run()-load finished in {}", load_end,);
-          println!("run()-parse finished in {}", parse_end,);
-
-          println!("run()-pre_analyze finished in {}", pre_analyze_end,);
-          println!("run()-scanner finished in {}", scanne_end,);
-          println!(
-            "run()-process finished in {}",
-            process_start.elapsed().as_millis(),
-          );
-          println!(
-            "run() finished in {} for module {}",
-            start.elapsed().as_millis(),
-            resolved_id.id
-          );
-        }
+        self
+          .tx
+          .send(Msg::NewMod(Box::new(module)))
+          .map_err(RolldownError::Channel)?;
       }
     }
+    Ok(())
   }
 
   // Fast path for analyzing static import and export.
-  #[inline]
   pub fn pre_analyze_imported_module(&self, module: &mut Module, ast: &swc_ecma_ast::Module) {
     ast.body.iter().for_each(|module_item| {
       if let ModuleItem::ModuleDecl(module_decl) = module_item {

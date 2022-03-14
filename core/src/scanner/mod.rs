@@ -20,6 +20,7 @@ use crate::{
   graph::Msg,
   symbol_box::SymbolBox,
   utils::side_effect::{detect_side_effect, SideEffect},
+  worker::RolldownError,
 };
 
 use self::{
@@ -27,7 +28,7 @@ use self::{
   scope::{BindType, Scope, ScopeKind},
 };
 
-mod helper;
+pub mod helper;
 pub mod rel;
 pub mod scope;
 mod symbol;
@@ -44,7 +45,7 @@ pub struct ModuleItemInfo {
 }
 
 // Declare symbols
-// Bind symbols. We use Hoister to handle varible hoisting situation.
+// Bind symbols. We use Hoister to handle variable hoisting situation.
 // TODO: Fold constants
 pub struct Scanner {
   pub cur_relation_order: usize,
@@ -85,9 +86,9 @@ impl Scanner {
     }
   }
 
-  pub fn declare(&mut self, id: &mut Ident, kind: BindType) {
+  pub fn declare(&mut self, id: &mut Ident, kind: BindType) -> Result<(), anyhow::Error> {
     let is_var_decl = matches!(kind, BindType::Var);
-    let finded_scope = self.stacks.iter_mut().enumerate().rev().find(|(_, scope)| {
+    let found_scope = self.stacks.iter_mut().enumerate().rev().find(|(_, scope)| {
       if is_var_decl {
         scope.kind == ScopeKind::Fn
       } else {
@@ -95,7 +96,7 @@ impl Scanner {
       }
     });
 
-    if let Some((idx, scope)) = finded_scope {
+    if let Some((idx, scope)) = found_scope {
       let is_root_scope = idx == 0;
       let declared_name = &id.sym;
       if let Some(declared_kind) = scope.declared_symbols_kind.get(declared_name) {
@@ -108,7 +109,11 @@ impl Scanner {
         );
       }
 
-      let mark = self.symbol_box.lock().unwrap().new_mark();
+      let mark = self
+        .symbol_box
+        .lock()
+        .map_err(|_| RolldownError::Lock)?
+        .new_mark();
 
       log::debug!(
         "[scanner]: new mark {:?} for `{}` is_root_scope: {:#}",
@@ -132,15 +137,16 @@ impl Scanner {
           .or_insert_with(|| mark);
       };
     }
+    Ok(())
   }
 
   pub fn resolve_ctxt_for_ident(&mut self, ident: &mut Ident) {
-    let mut is_finded = false;
+    let mut _is_finded = false;
     for (idx, scope) in &mut self.stacks.iter_mut().enumerate().rev() {
       let is_root_scope = idx == 0;
       if let Some(mark) = scope.declared_symbols.get(&ident.sym) {
         ident.span.ctxt = mark.as_ctxt();
-        is_finded = true;
+        _is_finded = true;
         if is_root_scope {
           let stmt_info = &mut self.statement_infos[self.cur_stmt_index];
           // TODO: duplicate detect
@@ -198,7 +204,9 @@ impl VisitMut for Scanner {
 
   fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {
     self.add_import(node);
-    self.add_export(node);
+    if let Err(e) = self.add_export(node) {
+      eprintln!("{}", e);
+    }
 
     node.visit_mut_children_with(self);
   }
@@ -267,7 +275,9 @@ impl VisitMut for Scanner {
   }
 
   fn visit_mut_class_decl(&mut self, n: &mut ClassDecl) {
-    self.declare(&mut n.ident, BindType::Let);
+    if let Err(e) = self.declare(&mut n.ident, BindType::Let) {
+      eprintln!("{}", e);
+    }
 
     self.push_scope(ScopeKind::Fn);
 
@@ -380,7 +390,9 @@ impl VisitMut for Scanner {
     self.push_scope(ScopeKind::Fn);
 
     if let Some(ident) = &mut e.ident {
-      self.declare(ident, BindType::Var);
+      if let Err(e) = self.declare(ident, BindType::Var) {
+        eprintln!("{}", e);
+      }
     }
     e.function.visit_mut_with(self);
 
@@ -441,7 +453,11 @@ impl VisitMut for Scanner {
 
   fn visit_mut_ident(&mut self, i: &mut Ident) {
     match self.ident_type {
-      IdentType::Binding(kind) => self.declare(i, kind),
+      IdentType::Binding(kind) => {
+        if let Err(e) = self.declare(i, kind) {
+          eprintln!("{}", e);
+        }
+      }
       IdentType::Ref => {
         self.resolve_ctxt_for_ident(i);
       }
@@ -553,7 +569,7 @@ pub struct Hoister<'me> {
   scanner: &'me mut Scanner,
   ident_type: Option<IdentType>,
   /// Hoister should not touch let / const in the block.
-  in_block: bool,
+  _in_block: bool,
   catch_param_decls: HashSet<JsWord>,
 }
 
@@ -562,7 +578,7 @@ impl<'me> Hoister<'me> {
     Self {
       scanner,
       ident_type: None,
-      in_block: false,
+      _in_block: false,
       catch_param_decls: Default::default(),
     }
   }
@@ -630,11 +646,9 @@ impl<'me> VisitMut for Hoister<'me> {
   }
 
   fn visit_mut_ident(&mut self, i: &mut Ident) {
-    if let Some(ident_type) = &self.ident_type {
-      match ident_type {
-        IdentType::Binding(kind) => self.scanner.declare(i, *kind),
-        // We only bind symbol in Hoister
-        _ => {}
+    if let Some(IdentType::Binding(kind)) = &self.ident_type {
+      if let Err(e) = self.scanner.declare(i, *kind) {
+        eprintln!("{}", e);
       }
     }
   }
@@ -644,7 +658,9 @@ impl<'me> VisitMut for Hoister<'me> {
     if self.catch_param_decls.contains(&node.ident.sym) {
       return;
     }
-    self.scanner.declare(&mut node.ident, BindType::Var);
+    if let Err(e) = self.scanner.declare(&mut node.ident, BindType::Var) {
+      eprintln!("{}", e);
+    }
   }
 
   // fn visit_mut_assign_pat_prop(&mut self, node: &mut AssignPatProp) {

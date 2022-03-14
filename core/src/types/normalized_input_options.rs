@@ -1,10 +1,11 @@
 // (source: &str, importer: Option<&str>, is_resolved: bool)
-type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool>;
+pub type IsExternal = Box<dyn Fn(&str, Option<&str>, bool) -> bool>;
 
 // type ModuleContext = Box<dyn Fn(&str) -> &str>;
 
 // type EntryAlias = String;
 
+#[derive(Default)]
 pub struct NormalizedInputOptions {
   // --- Options that Rolldown doesn't need to be supported
   // acorn: Record<string, unknown>;
@@ -39,17 +40,4 @@ pub struct NormalizedInputOptions {
   // (alias: Option<String>, path: String)
   pub input: Vec<String>,
   // pub preserve_symlinks: bool,
-}
-
-impl Default for NormalizedInputOptions {
-  fn default() -> Self {
-    Self {
-      // context: None,
-      // external: Box::new(|_, _, _| false),
-      input: Default::default(),
-      // preserve_symlinks: false,
-      // plugins: Default::default(),
-      treeshake: false,
-    }
-  }
 }

@@ -52,19 +52,18 @@ impl Bundle {
       }
     });
 
-    let rendered_chunks = chunks
+    chunks
       .iter_mut()
-      .map(|chunk| chunk.render(&self.output_options, &mut self.graph.module_by_id))
-      .collect::<Vec<_>>();
-
-    let output = rendered_chunks
-      .into_iter()
-      .map(|chunk| OutputChunk {
-        file_name: chunk.file_name,
-        code: chunk.code,
+      .map(|chunk| {
+        let chunk = chunk.render(&self.output_options, &mut self.graph.module_by_id);
+        (
+          chunk.file_name.clone(),
+          OutputChunk {
+            code: chunk.code,
+            file_name: chunk.file_name,
+          },
+        )
       })
-      .map(|output_chunk| (output_chunk.file_name.clone(), output_chunk))
-      .collect();
-    output
+      .collect()
   }
 }

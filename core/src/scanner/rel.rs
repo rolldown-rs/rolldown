@@ -6,7 +6,7 @@ use swc_ecma_ast::{
   CallExpr, Callee, Decl, DefaultDecl, ExportSpecifier, Expr, Lit, ModuleDecl, ModuleExportName,
 };
 
-use crate::{ext::SyntaxContextExt, graph::Rel};
+use crate::{ext::SyntaxContextExt, graph::Rel, worker::RolldownError};
 
 use super::{helper::collect_js_word_of_pat, Scanner};
 
@@ -35,7 +35,7 @@ pub struct DynImportDesc {
 }
 
 impl Scanner {
-  pub fn add_import(&mut self, module_decl: &ModuleDecl) {
+  pub fn add_import(&mut self, module_decl: &mut ModuleDecl) {
     if let ModuleDecl::Import(import_decl) = module_decl {
       let source = &import_decl.src.value;
       let import_info = self.import_infos.entry(source.clone()).or_insert_with(|| {
@@ -45,7 +45,7 @@ impl Scanner {
       });
 
       // We separate each specifier to support later tree-shaking.
-      import_decl.specifiers.iter().for_each(|specifier| {
+      import_decl.specifiers.iter_mut().for_each(|specifier| {
         let used;
         let original;
         let mark;
@@ -108,7 +108,7 @@ impl Scanner {
     }
   }
 
-  pub fn add_export(&mut self, module_decl: &ModuleDecl) {
+  pub fn add_export(&mut self, module_decl: &ModuleDecl) -> Result<(), anyhow::Error> {
     match module_decl {
       ModuleDecl::ExportDefaultDecl(node) => {
         let identifier = match &node.decl {
@@ -116,7 +116,11 @@ impl Scanner {
           DefaultDecl::Fn(node) => node.ident.as_ref().map(|id| id.sym.clone()),
           _ => None,
         };
-        let mark = self.symbol_box.lock().unwrap().new_mark();
+        let mark = self
+          .symbol_box
+          .lock()
+          .map_err(|_| RolldownError::Lock)?
+          .new_mark();
         self.statement_infos[self.cur_stmt_index].export_mark = Some(mark);
         self.local_exports.insert(
           "default".into(),
@@ -133,7 +137,11 @@ impl Scanner {
           Expr::Ident(id) => Some(id.sym.clone()),
           _ => None,
         };
-        let mark = self.symbol_box.lock().unwrap().new_mark();
+        let mark = self
+          .symbol_box
+          .lock()
+          .map_err(|_| RolldownError::Lock)?
+          .new_mark();
         self.statement_infos[self.cur_stmt_index].export_mark = Some(mark);
         self.local_exports.insert(
           "default".into(),
@@ -145,7 +153,7 @@ impl Scanner {
         );
       }
       ModuleDecl::ExportNamed(node) => {
-        node.specifiers.iter().for_each(|specifier| {
+        node.specifiers.iter().try_for_each(|specifier| {
           match specifier {
             ExportSpecifier::Named(s) => {
               if let Some(source_node) = &node.src {
@@ -171,7 +179,11 @@ impl Scanner {
                   .map_or(get_sym_from_module_export(&s.orig), |id| {
                     get_sym_from_module_export(id)
                   });
-                let re_export_mark = self.symbol_box.lock().unwrap().new_mark();
+                let re_export_mark = self
+                  .symbol_box
+                  .lock()
+                  .map_err(|_| RolldownError::Lock)?
+                  .new_mark();
                 re_export_info.names.insert(Specifier {
                   original: get_sym_from_module_export(&s.orig),
                   used: name.clone(),
@@ -225,7 +237,11 @@ impl Scanner {
                     self.cur_relation_order += 1;
                     rel
                   });
-              let re_export_mark = self.symbol_box.lock().unwrap().new_mark();
+              let re_export_mark = self
+                .symbol_box
+                .lock()
+                .map_err(|_| RolldownError::Lock)?
+                .new_mark();
 
               re_export_info.names.insert(Specifier {
                 original: "*".into(),
@@ -250,14 +266,19 @@ impl Scanner {
               // Rollup doesn't support it.
             }
           };
-        })
+          Ok::<(), RolldownError>(())
+        })?;
       }
       ModuleDecl::ExportDecl(node) => {
         match &node.decl {
           Decl::Class(node) => {
             // export class Foo {}
             let local_name = node.ident.sym.clone();
-            let mark = self.symbol_box.lock().unwrap().new_mark();
+            let mark = self
+              .symbol_box
+              .lock()
+              .map_err(|_| RolldownError::Lock)?
+              .new_mark();
             self.statement_infos[self.cur_stmt_index].export_mark = Some(mark);
             self.local_exports.insert(
               local_name.clone(),
@@ -271,7 +292,11 @@ impl Scanner {
           Decl::Fn(node) => {
             // export function foo () {}
             let local_name = node.ident.sym.clone();
-            let mark = self.symbol_box.lock().unwrap().new_mark();
+            let mark = self
+              .symbol_box
+              .lock()
+              .map_err(|_| RolldownError::Lock)?
+              .new_mark();
             self.statement_infos[self.cur_stmt_index].export_mark = Some(mark);
             self.local_exports.insert(
               local_name.clone(),
@@ -285,11 +310,15 @@ impl Scanner {
           Decl::Var(node) => {
             // export var { foo, bar } = ...
             // export var foo = 1, bar = 2;
-            node.decls.iter().for_each(|decl| {
+            node.decls.iter().try_for_each(|decl| {
               collect_js_word_of_pat(&decl.name)
                 .into_iter()
-                .for_each(|local_name| {
-                  let mark = self.symbol_box.lock().unwrap().new_mark();
+                .try_for_each(|local_name| {
+                  let mark = self
+                    .symbol_box
+                    .lock()
+                    .map_err(|_| RolldownError::Lock)?
+                    .new_mark();
                   self.statement_infos[self.cur_stmt_index].export_mark = Some(mark);
                   self.local_exports.insert(
                     local_name.clone(),
@@ -299,8 +328,9 @@ impl Scanner {
                       mark,
                     },
                   );
-                });
-            });
+                  Ok::<(), RolldownError>(())
+                })
+            })?;
           }
           _ => {}
         }
@@ -314,6 +344,7 @@ impl Scanner {
       }
       _ => {}
     }
+    Ok(())
   }
 }
 

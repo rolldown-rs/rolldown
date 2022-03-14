@@ -2,14 +2,25 @@
   "name": "rolldown",
   "version": "1.0.0",
   "description": "Rollup Rust implementation with 100% API compatible",
-  "private": "true",
   "repository": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",
-  "workspaces": ["node"],
-  "keywords": ["napi-rs", "NAPI", "N-API", "Rust", "node-addon", "node-addon-api"],
-  "files": ["index.d.ts", "index.js"],
+  "workspaces": [
+    "node"
+  ],
+  "keywords": [
+    "napi-rs",
+    "NAPI",
+    "N-API",
+    "Rust",
+    "node-addon",
+    "node-addon-api"
+  ],
+  "files": [
+    "index.d.ts",
+    "index.js"
+  ],
   "engines": {
-    "node": ">= 10"
+    "node": ">= 16"
   },
   "scripts": {
     "artifacts": "lerna run artifacts",
@@ -18,47 +29,61 @@
     "build": "lerna run build --stream",
     "lint": "eslint . -c ./.eslintrc.yml",
     "test": "ava",
-    "format": "run-p format:md format:json format:yaml format:source",
-    "format:md": "prettier --parser markdown --write \"./**/*.md\"",
-    "format:json": "prettier --parser json --write \"./**/*.json\"",
-    "format:source": "prettier --config ./package.json --write \"./**/*.{js,ts}\"",
-    "format:yaml": "prettier --parser yaml --write \"./**/*.{yml,yaml}\"",
+    "format": "run-p format:source format:rs format:toml",
+    "format:source": "prettier --write .",
+    "format:rs": "cargo fmt",
+    "format:toml": "taplo format",
     "typecheck": "tsc -b tsconfig.project.json -verbose",
     "postinstall": "husky install"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.4.2",
-    "@swc-node/register": "^1.3.7",
-    "@types/node": "^16.11.6",
-    "@typescript-eslint/eslint-plugin": "^5.2.0",
-    "@typescript-eslint/parser": "^5.2.0",
-    "ava": "^3.15.0",
+    "@napi-rs/cli": "^2.4.5",
+    "@swc-node/register": "^1.4.2",
+    "@taplo/cli": "^0.3.2",
+    "@types/node": "^17.0.21",
+    "@typescript-eslint/eslint-plugin": "^5.14.0",
+    "@typescript-eslint/parser": "^5.14.0",
+    "ava": "^4.1.0",
     "benny": "^3.7.1",
-    "chalk": "^4.1.2",
-    "esbuild": "^0.14.0",
-    "eslint": "^8.1.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.25.2",
+    "colorette": "^2.0.16",
+    "esbuild": "^0.14.25",
+    "eslint": "^8.11.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.25.4",
     "eslint-plugin-prettier": "^4.0.0",
-    "eslint-plugin-sonarjs": "^0.11.0",
+    "eslint-plugin-sonarjs": "^0.12.0",
     "husky": "^7.0.4",
     "lerna": "^4.0.0",
-    "lint-staged": "^11.2.6",
+    "lint-staged": "^12.3.5",
     "lodash-es": "^4.17.21",
     "npm-run-all": "^4.1.5",
-    "prettier": "^2.4.1",
-    "rollup": "^2.58.3",
-    "typescript": "^4.4.4"
+    "prettier": "^2.5.1",
+    "rollup": "^2.70.0",
+    "typescript": "^4.6.2"
   },
   "lint-staged": {
-    "*.@(js|ts|tsx)": ["prettier --write", "eslint -c .eslintrc.yml --fix"],
-    "*.@(yml|yaml)": ["prettier --parser yaml --write"],
-    "*.md": ["prettier --parser markdown --write"],
-    "*.json": ["prettier --parser json --write"]
+    "*.@(js|ts|tsx)": [
+      "prettier --write",
+      "eslint -c .eslintrc.yml --fix"
+    ],
+    "*.@(js||ts|json|md|yml|yaml)": [
+      "prettier --write"
+    ],
+    "*.toml": [
+      "taplo format"
+    ],
+    "*.rs": [
+      "cargo fmt --"
+    ]
   },
   "ava": {
-    "require": ["@swc-node/register"],
-    "extensions": ["ts"],
+    "require": [
+      "@swc-node/register"
+    ],
+    "extensions": [
+      "ts"
+    ],
+    "workerThreads": false,
     "environmentVariables": {
       "TS_NODE_PROJECT": "./tsconfig.json"
     }
@@ -68,7 +93,7 @@
     "semi": false,
     "trailingComma": "all",
     "singleQuote": true,
-    "arrowParens": "always",
-    "parser": "typescript"
-  }
+    "arrowParens": "always"
+  },
+  "packageManager": "yarn@3.2.0"
 }

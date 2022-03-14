@@ -69,6 +69,7 @@ pub fn parse_file(source_code: String, filename: &str) -> swc_ecma_ast::Module {
       decorators_before_export: true,
       decorators: true,
       fn_bind: true,
+      allow_super_outside_method: true,
     })
   };
 

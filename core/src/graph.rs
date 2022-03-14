@@ -4,7 +4,6 @@ use std::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
   },
-  time::Instant,
 };
 
 use crossbeam::{
@@ -37,7 +36,7 @@ pub struct Graph {
   pub entry_indexs: Vec<NodeIndex>,
   pub ordered_modules: Vec<NodeIndex>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
-  pub module_by_id: HashMap<SmolStr, Module>,
+  pub module_by_id: HashMap<SmolStr, Box<Module>>,
   pub mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
 }
 
@@ -62,7 +61,7 @@ impl Rel {
 
 pub enum Msg {
   DependencyReference(SmolStr, SmolStr, Rel),
-  NewMod(Module),
+  NewMod(Box<Module>),
   NewExtMod(ExternalModule),
 }
 
@@ -89,8 +88,6 @@ impl Graph {
   }
   // build dependency graph via entry modules.
   fn generate_module_graph(&mut self) {
-    let start = Instant::now();
-
     let nums_of_thread = num_cpus::get();
     let idle_thread_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(nums_of_thread));
     let job_queue: Arc<SegQueue<ResolvedId>> = Default::default();
@@ -125,7 +122,9 @@ impl Graph {
       };
       std::thread::spawn(move || loop {
         idle_thread_count.fetch_sub(1, Ordering::SeqCst);
-        worker.run();
+        if let Err(e) = worker.run() {
+          eprintln!("{}", e);
+        }
         idle_thread_count.fetch_add(1, Ordering::SeqCst);
         loop {
           if !worker.job_queue.is_empty() {
@@ -170,11 +169,6 @@ impl Graph {
     self.module_by_id.par_iter_mut().for_each(|(_key, module)| {
       module.is_user_defined_entry_point = entries_id.contains(&module.id);
     });
-
-    println!(
-      "generate_module_graph() finished in {}",
-      start.elapsed().as_millis()
-    );
   }
 
   fn sort_modules(&mut self) {
@@ -210,16 +204,11 @@ impl Graph {
   }
 
   pub fn build(&mut self) {
-    let build_start = Instant::now();
     self.generate_module_graph();
-
     self.sort_modules();
-
     self.link_module_exports();
     self.link_module();
     self.include();
-
-    println!("build() finished in {}", build_start.elapsed().as_millis());
   }
 
   pub fn include(&mut self) {
@@ -286,8 +275,6 @@ impl Graph {
       });
     }
   }
-
-  // pub fn get_module
 
   pub fn link_module_exports(&mut self) {
     self.ordered_modules.iter().for_each(|idx| {

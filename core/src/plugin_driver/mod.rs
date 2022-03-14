@@ -2,6 +2,7 @@ use std::sync::Mutex;
 
 use crate::types::ResolveIdResult;
 
+#[derive(Default)]
 pub struct PluginDriver {
   pub plugins: Mutex<Vec<Box<dyn Plugin + Send>>>,
 }

@@ -1,12 +1,26 @@
 {
   "name": "@rolldown/core-linux-x64-musl",
   "version": "0.1.2",
-  "os": ["linux"],
-  "cpu": ["x64"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "main": "rolldown.linux-x64-musl.node",
-  "files": ["rolldown.linux-x64-musl.node"],
+  "files": [
+    "rolldown.linux-x64-musl.node"
+  ],
   "description": "Rollup Rust implementation with 100% API compatible",
-  "keywords": ["Rollup", "webpack", "parcel", "bundle", "swc", "napi-rs", "node-api"],
+  "keywords": [
+    "Rollup",
+    "webpack",
+    "parcel",
+    "bundle",
+    "swc",
+    "napi-rs",
+    "node-api"
+  ],
   "author": "LongYinan <lynweklm@gmail.com>",
   "homepage": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",

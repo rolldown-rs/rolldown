@@ -10,6 +10,12 @@ pub struct SymbolBox {
 
 pub(crate) static SYMBOL_GLOBALS: Lazy<Globals> = Lazy::new(Globals::new);
 
+impl Default for SymbolBox {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl SymbolBox {
   pub fn new() -> Self {
     let mut mark_uf: InPlaceUnificationTable<MarkIndex> = Default::default();

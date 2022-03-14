@@ -36,7 +36,7 @@ pub fn is_legal(s: &str) -> bool {
   }
 }
 
-static UN_LEGAL_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"-(\w)").unwrap());
+pub static UN_LEGAL_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"-(\w)").unwrap());
 
 pub fn make_legal(s: &str) -> String {
   // 	str = str.replace(/-(\w)/g, (_, letter) => letter.toUpperCase()).replace(ILLEGAL_CHARACTERS, '_');

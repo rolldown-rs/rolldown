@@ -42,7 +42,7 @@ fn mark_ident(mark: &Mark) -> Ident {
 }
 
 #[inline]
-fn expr_ident(s: &str) -> Box<Expr> {
+pub fn expr_ident(s: &str) -> Box<Expr> {
   Box::new(Expr::Ident(Ident {
     sym: jsword(s),
     ..Ident::dummy()

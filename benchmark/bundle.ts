@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
-import chalk from 'chalk'
+import { blue } from 'colorette'
 import { build } from 'esbuild'
 import { rollup } from 'rollup'
 
@@ -12,7 +12,7 @@ const THREE_JS_ENTRY = join(__dirname, 'three.js', 'src', 'Three.js')
 
 async function bench(entry: string, entryName: string) {
   const beforeEsbuild = process.hrtime.bigint()
-  const name = chalk.blue(entryName)
+  const name = blue(entryName)
   const {
     outputFiles: [{ text }],
   } = await build({
