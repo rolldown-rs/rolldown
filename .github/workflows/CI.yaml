@@ -27,7 +27,7 @@ jobs:
             target: x86_64-apple-darwin
             build: |
               yarn build
-              strip -x *.node
+              strip -x node/*.node
           # - host: windows-latest
           #   build: yarn build
           #   target: x86_64-pc-windows-msvc
@@ -38,11 +38,11 @@ jobs:
               set -e &&
               rustup target add x86_64-unknown-linux-gnu &&
               yarn build --target x86_64-unknown-linux-gnu --zig --zig-abi-suffix 2.12 &&
-              llvm-strip -x *.node
+              llvm-strip -x node/*.node
           - host: ubuntu-latest
             target: x86_64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
-            build: set -e && yarn build && strip *.node
+            build: set -e && yarn build && strip node/*.node
           - host: macos-latest
             target: aarch64-apple-darwin
             build: |
@@ -52,7 +52,7 @@ jobs:
               SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
               yarn build --target aarch64-apple-darwin
-              strip -x *.node
+              strip -x node/*.node
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine-zig
@@ -60,7 +60,7 @@ jobs:
               set -e &&
               rustup target add aarch64-unknown-linux-gnu &&
               yarn build --target aarch64-unknown-linux-gnu --zig --zig-abi-suffix 2.17 &&
-              llvm-strip -x *.node
+              llvm-strip -x node/*.node
           - host: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
             setup: |
@@ -68,7 +68,7 @@ jobs:
               sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf -y
             build: |
               yarn build --target=armv7-unknown-linux-gnueabihf
-              arm-linux-gnueabihf-strip *.node
+              arm-linux-gnueabihf-strip node/*.node
           - host: ubuntu-latest
             target: aarch64-linux-android
             build: |
@@ -77,7 +77,7 @@ jobs:
               export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
               export PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
               yarn build --target aarch64-linux-android
-              ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip *.node
+              ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip node/*.node
           - host: ubuntu-latest
             target: armv7-linux-androideabi
             build: |
@@ -86,7 +86,7 @@ jobs:
               export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang++"
               export PATH="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
               yarn build --target armv7-linux-androideabi
-              ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi-strip *.node
+              ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi-strip node/*.node
           - host: ubuntu-latest
             target: aarch64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
@@ -94,7 +94,7 @@ jobs:
               set -e &&
               rustup target add aarch64-unknown-linux-musl &&
               yarn build --target aarch64-unknown-linux-musl &&
-              /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node
+              /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip node/*.node
           - host: windows-latest
             target: aarch64-pc-windows-msvc
             build: yarn build --target aarch64-pc-windows-msvc
@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: ${{ env.APP_NAME }}.*.node
+          path: node/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
   build-freebsd:
     runs-on: macos-10.15
@@ -208,7 +208,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: bindings-freebsd
-          path: ${{ env.APP_NAME }}.*.node
+          path: node/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
   test-macOS-windows-binding:
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
@@ -246,7 +246,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -283,7 +283,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-x86_64-unknown-linux-gnu
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -322,7 +322,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-x86_64-unknown-linux-musl
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -347,7 +347,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-aarch64-unknown-linux-gnu
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -382,7 +382,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-aarch64-unknown-linux-musl
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -424,7 +424,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-armv7-unknown-linux-gnueabihf
-          path: .
+          path: node/
       - name: List packages
         run: ls -R .
         shell: bash
