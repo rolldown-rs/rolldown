@@ -241,6 +241,7 @@ impl Graph {
           });
       });
 
+      #[allow(clippy::needless_collect)]
       let read_marks = self
         .module_by_id
         .iter()

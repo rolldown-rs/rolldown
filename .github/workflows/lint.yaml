@@ -27,9 +27,6 @@ jobs:
           override: true
           components: rustfmt, clippy
 
-      - name: Install pnpm
-        run: npm install -g pnpm
-
       - name: Cache NPM dependencies
         uses: actions/cache@v2
         with:
@@ -37,12 +34,12 @@ jobs:
           key: npm-cache-lint-node@16-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: 'Install dependencies'
-        run: pnpm install --frozen-lockfile --registry https://registry.npmjs.org
+        run: yarn install --mode=skip-build --immutable
 
       - name: ESLint
-        run: pnpm lint
+        run: yarn lint
 
       - name: Cargo fmt
         run: cargo fmt -- --check
-#      - name: Clippy
-#        run: cargo clippy
+      - name: Clippy
+        run: cargo clippy
