@@ -2,3 +2,4 @@ target
 **/fixtures/**
 **/*.rs
 core
+binding.js
