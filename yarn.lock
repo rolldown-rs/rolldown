@@ -1171,12 +1171,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rolldown/core@workspace:node":
-  version: 0.0.0-use.local
-  resolution: "@rolldown/core@workspace:node"
-  languageName: unknown
-  linkType: soft
-
 "@swc-node/core@npm:^1.8.2":
   version: 1.8.2
   resolution: "@swc-node/core@npm:1.8.2"

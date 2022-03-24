@@ -3,7 +3,7 @@ import { join } from 'path'
 import b from 'benny'
 import { rollup } from 'rollup'
 
-import { rolldown } from '../node'
+import { rolldown } from '../node-binding'
 
 const ENTRY = join(__dirname, 'fixtures', 'main.js')
 
