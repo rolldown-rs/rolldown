@@ -981,6 +981,7 @@ dependencies = [
  "rayon",
  "regex",
  "smol_str",
+ "sugar_path",
  "swc_atoms",
  "swc_common",
  "swc_ecma_ast",
@@ -1174,6 +1175,15 @@ name = "strsim"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6446ced80d6c486436db5c078dde11a9f73d42b57fb273121e160b84f63d894c"
+
+[[package]]
+name = "sugar_path"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33a8638cbe670f37437e9b62887e79f88ba7310d0f8774a758a589167710e5de"
+dependencies = [
+ "once_cell",
+]
 
 [[package]]
 name = "swc_atoms"
