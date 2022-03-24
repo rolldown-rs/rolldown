@@ -5,7 +5,7 @@
   "repository": "https://github.com/Brooooooklyn/rolldown",
   "license": "MIT",
   "workspaces": [
-    "node"
+    "node-binding"
   ],
   "keywords": [
     "napi-rs",
