@@ -27,7 +27,7 @@ jobs:
             target: x86_64-apple-darwin
             build: |
               yarn build
-              strip -x node/*.node
+              strip -x node-binding/*.node
           # - host: windows-latest
           #   build: yarn build
           #   target: x86_64-pc-windows-msvc
@@ -38,7 +38,7 @@ jobs:
               set -e &&
               rustup target add x86_64-unknown-linux-gnu &&
               yarn build &&
-              strip -x node/*.node
+              strip -x node-binding/*.node
           # - host: ubuntu-latest
           #   target: x86_64-unknown-linux-musl
           #   docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
@@ -159,7 +159,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: node/${{ env.APP_NAME }}.*.node
+          path: node-binding/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
   # build-freebsd:
   #   runs-on: macos-10.15
@@ -246,7 +246,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: node/
+          path: node-binding/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -283,7 +283,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: bindings-x86_64-unknown-linux-gnu
-          path: node/
+          path: node-binding/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -479,7 +479,7 @@ jobs:
       - name: Move artifacts
         run: yarn artifacts
       - name: List packages
-        run: ls -R ./node/npm
+        run: ls -R ./node-binding/npm
         shell: bash
       - name: Lerna publish
         if: "startsWith(github.event.head_commit.message, 'chore(release): publish')"
