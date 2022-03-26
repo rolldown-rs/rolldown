@@ -37,6 +37,7 @@ swc_ecma_codegen = "0.95"
 swc_ecma_parser = "0.93"
 swc_ecma_visit = "0.56"
 thiserror = "1"
+sugar_path = "0.0.3"
 
 [dev_dependencies]
 insta = "1.11.0"
