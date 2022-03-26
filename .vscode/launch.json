@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "name": "debug-js",
+      "port": 9229,
+      "request": "attach",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "pwa-node"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": ["rust"],
+      "name": "debug-rust",
+      "program": "node",
+      "args": ["--inspect-brk", "test.js"],
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "debug-rolldown",
+      "configurations": ["debug-js", "debug-rust"]
+    }
+  ]
+}
