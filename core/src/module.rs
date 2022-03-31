@@ -266,6 +266,12 @@ impl Module {
       mark_to_stmt
         .entry(self.namespace.mark)
         .or_insert_with(|| (self.id.clone(), idx));
+      // FIXME: actually we should determine whether we should push a new helper statement by analyse importStar usage
+      // eg: import * as foo from "./foo"
+      // console.log(foo) // this will include the helper statement
+      // console.log(foo.bar) // instead this will only include statement bar itself, and `foo.bar` or `foo['bar']` will be replaced to the defined statement
+      // console.log(foo, foo.bar) // this will include the helper statement
+
       self.statements.push(s);
       self
         .declared_symbols

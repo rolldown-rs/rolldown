@@ -16,6 +16,7 @@ use rayon::prelude::*;
 use smol_str::SmolStr;
 
 use swc_common::Mark;
+use swc_ecma_ast::{ModuleDecl, ModuleItem};
 
 use crate::{
   external_module::ExternalModule,
@@ -262,6 +263,11 @@ impl Graph {
           let module = self.module_by_id.get_mut(module_id).unwrap();
           let stmt = &mut module.statements[*idx];
           if !is_decl_or_stmt(&stmt.node) {
+            if matches!(
+              &stmt.node,
+              // FIXME: actually we should check importStar, and how we access importStar to determine whether we should include the helper function or not
+              ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_))
+            ) {}
             return std::ops::ControlFlow::Continue(());
           }
           log::debug!(
