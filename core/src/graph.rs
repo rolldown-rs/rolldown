@@ -290,11 +290,14 @@ impl Graph {
               return std::ops::ControlFlow::Break(());
             }
             MarkStmt::ImportNamespace(module_id) => {
+              println!("{}", module_id);
               let module = self.module_by_id.get_mut(module_id).unwrap();
               module.include_namespace();
               return std::ops::ControlFlow::Continue(());
             }
             MarkStmt::ExportNamespace(module_id) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              module.include_namespace();
               return std::ops::ControlFlow::Continue(());
             }
           }

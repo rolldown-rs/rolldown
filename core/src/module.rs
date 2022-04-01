@@ -20,7 +20,7 @@ use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
 use swc_common::{Mark, Span, SyntaxContext, DUMMY_SP};
-use swc_ecma_ast::Ident;
+use swc_ecma_ast::{ExportSpecifier, Ident, ImportSpecifier};
 
 use crate::utils::is_decl_or_stmt;
 use swc_ecma_codegen::text_writer::WriteJs;
@@ -123,23 +123,41 @@ impl Module {
         let is_import_namespace = is_import_namespace(&node);
         let is_export_namespace = is_export_namespace(&node);
 
+        let target_module_id =
+          if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &node {
+            Some(self.resolve_id(&import_decl.src.value).id)
+          } else if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(named_export)) = &node {
+            if let Some(ExportSpecifier::Namespace(_)) = named_export.specifiers.get(0) {
+              Some(
+                self
+                  .resolve_id(&named_export.src.as_ref().unwrap().value)
+                  .id,
+              )
+            } else {
+              None
+            }
+          } else {
+            None
+          };
+
         let mut stmt = Statement::new(node);
         if let Some(export_mark) = info.export_mark {
           mark_to_stmt
             .entry(export_mark)
             .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
         }
+        println!("{:#?}", info);
         info.declared.iter().for_each(|(name, mark)| {
           self.definitions.insert(name.clone(), idx);
 
           if is_import_namespace {
             mark_to_stmt
               .entry(*mark)
-              .or_insert_with(|| MarkStmt::ImportNamespace(self.id.clone()));
+              .or_insert_with(|| MarkStmt::ImportNamespace(target_module_id.clone().unwrap()));
           } else if is_export_namespace {
             mark_to_stmt
               .entry(*mark)
-              .or_insert_with(|| MarkStmt::ExportNamespace(self.id.clone()));
+              .or_insert_with(|| MarkStmt::ExportNamespace(target_module_id.clone().unwrap()));
           } else if is_decl_or_stmt {
             mark_to_stmt
               .entry(*mark)
@@ -249,6 +267,10 @@ impl Module {
         });
       // TODO: We should generate a name which has no conflict.
       // TODO: We might need to check if the name already exsits.
+      println!(
+        "{} {:#?}",
+        suggested_default_export_name, self.declared_symbols
+      );
       assert!(!self
         .declared_symbols
         .contains_key(&suggested_default_export_name));
@@ -266,6 +288,7 @@ impl Module {
         &self.exports,
       );
       let mut s = Statement::new(ast::ModuleItem::Stmt(namespace));
+      s.include();
       let idx = self.statements.len();
       self
         .definitions
