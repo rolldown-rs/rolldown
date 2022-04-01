@@ -30,6 +30,13 @@ use crate::{
 
 type ModulePetGraph = petgraph::graph::DiGraph<SmolStr, Rel>;
 
+#[derive(Debug)]
+pub enum MarkStmt {
+  Stmt(SmolStr, usize),
+  ImportNamespace(SmolStr),
+  ExportNamespace(SmolStr),
+}
+
 pub struct Graph {
   pub input_options: NormalizedInputOptions,
   resolved_entries: Vec<ResolvedId>,
@@ -38,7 +45,7 @@ pub struct Graph {
   pub ordered_modules: Vec<NodeIndex>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
   pub module_by_id: HashMap<SmolStr, Box<Module>>,
-  pub mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
+  pub mark_to_stmt: Arc<DashMap<Mark, MarkStmt>>,
 }
 
 // Relation between modules
@@ -259,25 +266,38 @@ impl Graph {
 
         matched_decls.into_iter().try_for_each(|pair| {
           // TODO: recursively add `export *` 's mark
-          let (module_id, idx) = pair.value();
-          let module = self.module_by_id.get_mut(module_id).unwrap();
-          let stmt = &mut module.statements[*idx];
-          if !is_decl_or_stmt(&stmt.node) {
-            if matches!(
-              &stmt.node,
-              // FIXME: actually we should check importStar, and how we access importStar to determine whether we should include the helper function or not
-              ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_))
-            ) {}
-            return std::ops::ControlFlow::Continue(());
+
+          match pair.value() {
+            MarkStmt::Stmt(module_id, idx) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              let stmt = &mut module.statements[*idx];
+              if !is_decl_or_stmt(&stmt.node) {
+                // if matches!(
+                //   &stmt.node,
+                //   FIXME: actually we should check importStar, and how we access importStar to determine whether we should include the helper function or not
+                // ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_))
+                // ) {}
+                return std::ops::ControlFlow::Continue(());
+              }
+              log::debug!(
+                "[treeshake]: module id: {} stmts: {:#?}",
+                module_id.as_str(),
+                stmt,
+              );
+              log::debug!("[treeshake]: include statement {:#?}", stmt.node.clone());
+              stmt.include();
+
+              return std::ops::ControlFlow::Break(());
+            }
+            MarkStmt::ImportNamespace(module_id) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              module.include_namespace();
+              return std::ops::ControlFlow::Continue(());
+            }
+            MarkStmt::ExportNamespace(module_id) => {
+              return std::ops::ControlFlow::Continue(());
+            }
           }
-          log::debug!(
-            "[treeshake]: module id: {} stmts: {:#?}",
-            module_id.as_str(),
-            stmt,
-          );
-          log::debug!("[treeshake]: include statement {:#?}", stmt.node.clone());
-          stmt.include();
-          std::ops::ControlFlow::Break(())
         });
       });
     }
@@ -356,20 +376,23 @@ impl Graph {
             );
 
             if &specifier.original == "*" {
-              // REFACTOR
-              dep_module.include_namespace(self.mark_to_stmt.clone());
+              // link `import * as foo` to dep module's namespace mark
+              self
+                .symbol_box
+                .lock()
+                .unwrap()
+                .union(specifier.mark, dep_module.namespace.mark);
+              // NOTE: we include namespace in `include` stage
+              // dep_module.include_namespace(self.mark_to_stmt.clone());
+            } else if let Some(dep_module_exported_mark) =
+              dep_module.exports.get(&specifier.original)
+            {
+              self
+                .symbol_box
+                .lock()
+                .unwrap()
+                .union(specifier.mark, *dep_module_exported_mark);
             }
-
-            let dep_module_exported_mark = dep_module
-              .exports
-              .get(&specifier.original)
-              .expect("Not found");
-
-            self
-              .symbol_box
-              .lock()
-              .unwrap()
-              .union(specifier.mark, *dep_module_exported_mark);
           });
         }
       });

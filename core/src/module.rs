@@ -3,7 +3,7 @@ use crate::scanner::ModuleItemInfo;
 use crate::statement::Statement;
 use crate::symbol_box::SymbolBox;
 
-use crate::utils::{ast_sugar, resolve_id};
+use crate::utils::{ast_sugar, is_export_namespace, is_import_namespace, resolve_id};
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -27,6 +27,7 @@ use swc_ecma_codegen::text_writer::WriteJs;
 use swc_ecma_codegen::Emitter;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
 
+use crate::graph::MarkStmt;
 use crate::scanner::rel::{ExportDesc, ReExportDesc};
 use crate::types::ResolvedId;
 
@@ -109,7 +110,7 @@ impl Module {
     &mut self,
     ast: ast::Module,
     module_item_infos: Vec<ModuleItemInfo>,
-    mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
+    mark_to_stmt: Arc<DashMap<Mark, MarkStmt>>,
   ) {
     self.module_span = ast.span;
     self.statements = ast
@@ -119,20 +120,30 @@ impl Module {
       .enumerate()
       .map(|(idx, (node, info))| {
         let is_decl_or_stmt = is_decl_or_stmt(&node);
+        let is_import_namespace = is_import_namespace(&node);
+        let is_export_namespace = is_export_namespace(&node);
+
         let mut stmt = Statement::new(node);
         if let Some(export_mark) = info.export_mark {
           mark_to_stmt
             .entry(export_mark)
-            .or_insert_with(|| (self.id.clone(), idx));
+            .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
         }
         info.declared.iter().for_each(|(name, mark)| {
           self.definitions.insert(name.clone(), idx);
 
-          // Skip declarations brought by `import`
-          if is_decl_or_stmt {
+          if is_import_namespace {
             mark_to_stmt
               .entry(*mark)
-              .or_insert_with(|| (self.id.clone(), idx));
+              .or_insert_with(|| MarkStmt::ImportNamespace(self.id.clone()));
+          } else if is_export_namespace {
+            mark_to_stmt
+              .entry(*mark)
+              .or_insert_with(|| MarkStmt::ExportNamespace(self.id.clone()));
+          } else if is_decl_or_stmt {
+            mark_to_stmt
+              .entry(*mark)
+              .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
           }
         });
         stmt.writes = info.writes;
@@ -227,7 +238,7 @@ impl Module {
     }
   }
 
-  pub fn include_namespace(&mut self, mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>) {
+  pub fn include_namespace(&mut self) {
     if !self.namespace.included {
       let suggested_default_export_name = self
         .suggested_names
@@ -263,9 +274,9 @@ impl Module {
         .entry(suggested_default_export_name.clone())
         .or_insert_with(|| self.namespace.mark);
 
-      mark_to_stmt
-        .entry(self.namespace.mark)
-        .or_insert_with(|| (self.id.clone(), idx));
+      // mark_to_stmt
+      //   .entry(self.namespace.mark)
+      //   .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
       // FIXME: actually we should determine whether we should push a new helper statement by analyse importStar usage
       // eg: import * as foo from "./foo"
       // console.log(foo) // this will include the helper statement

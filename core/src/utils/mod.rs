@@ -5,7 +5,7 @@ pub mod side_effect;
 pub use lcp::*;
 use std::path::Path;
 
-use swc_ecma_ast::{EsVersion, ModuleDecl, ModuleItem};
+use swc_ecma_ast::{EsVersion, ExportSpecifier, ImportSpecifier, ModuleDecl, ModuleItem};
 
 use swc_common::{
   errors::{ColorConfig, Handler},
@@ -46,6 +46,27 @@ pub fn is_decl_or_stmt(node: &ModuleItem) -> bool {
         | ModuleDecl::ExportDefaultDecl(_)
     ) | ModuleItem::Stmt(_)
   )
+}
+
+#[inline]
+pub fn is_import_namespace(node: &ModuleItem) -> bool {
+  if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &node {
+    if let Some(ImportSpecifier::Namespace(_)) = import_decl.specifiers.get(0) {
+      return true;
+    }
+  }
+  false
+}
+
+#[inline]
+pub fn is_export_namespace(node: &ModuleItem) -> bool {
+  if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(named_export)) = &node {
+    // FIXME: split `export * as foo, { foo } from "./foo"`
+    if let Some(ExportSpecifier::Namespace(_)) = named_export.specifiers.get(0) {
+      return true;
+    }
+  }
+  false
 }
 
 pub fn parse_file(source_code: String, filename: &str) -> swc_ecma_ast::Module {
