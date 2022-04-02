@@ -249,9 +249,11 @@ impl Graph {
           });
       });
 
-      #[allow(clippy::needless_collect)]
       let dummy_marks: HashSet<Mark> = Default::default();
-      let read_marks = self
+      let mut visited_marks: HashSet<Mark> = Default::default();
+
+      #[allow(clippy::needless_collect)]
+      let mut read_marks = self
         .module_by_id
         .iter()
         .flat_map(|(_id, module)| {
@@ -274,7 +276,12 @@ impl Graph {
         .cloned()
         .collect::<Vec<_>>();
 
-      read_marks.into_iter().for_each(|mark| {
+      while let Some(mark) = read_marks.pop() {
+        if visited_marks.contains(&mark) {
+          continue;
+        }
+        visited_marks.insert(mark.clone());
+        // println!("{:?}", read_marks);
         let from_root_mark = self.symbol_box.lock().unwrap().find_root(mark);
         let matched_decls = self.mark_to_stmt.iter().filter(|pair| {
           let dest_root_mark = self.symbol_box.lock().unwrap().find_root(*pair.key());
@@ -288,6 +295,10 @@ impl Graph {
             MarkStmt::Stmt(module_id, idx) => {
               let module = self.module_by_id.get_mut(module_id).unwrap();
               let stmt = &mut module.statements[*idx];
+              if stmt.included {
+                return std::ops::ControlFlow::Break(());
+              }
+
               if !is_decl_or_stmt(&stmt.node) {
                 // if matches!(
                 //   &stmt.node,
@@ -309,17 +320,20 @@ impl Graph {
             MarkStmt::ImportNamespace(module_id) => {
               println!("{}", module_id);
               let module = self.module_by_id.get_mut(module_id).unwrap();
-              module.include_namespace();
-              return std::ops::ControlFlow::Continue(());
+              let discovered_marks = module.include_namespace();
+              read_marks.extend(discovered_marks);
+              return std::ops::ControlFlow::Break(());
             }
             MarkStmt::ExportNamespace(module_id) => {
               let module = self.module_by_id.get_mut(module_id).unwrap();
               module.include_namespace();
-              return std::ops::ControlFlow::Continue(());
+              return std::ops::ControlFlow::Break(());
             }
           }
         });
-      });
+      }
+
+      read_marks.into_iter().for_each(|mark| {});
     }
   }
 

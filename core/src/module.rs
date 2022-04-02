@@ -30,6 +30,7 @@ use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
 use crate::graph::MarkStmt;
 use crate::scanner::rel::{ExportDesc, ReExportDesc};
 use crate::types::ResolvedId;
+use std::iter::FromIterator;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Namespace {
@@ -256,7 +257,7 @@ impl Module {
     }
   }
 
-  pub fn include_namespace(&mut self) {
+  pub fn include_namespace(&mut self) -> HashSet<Mark> {
     if !self.namespace.included {
       let suggested_default_export_name = self
         .suggested_names
@@ -288,6 +289,9 @@ impl Module {
         &self.exports,
       );
       let mut s = Statement::new(ast::ModuleItem::Stmt(namespace));
+
+      let reads = HashSet::from_iter(self.exports.values().cloned());
+      s.reads = reads.clone();
       s.include();
       let idx = self.statements.len();
       self
@@ -311,6 +315,10 @@ impl Module {
         .declared_symbols
         .insert(suggested_default_export_name, self.namespace.mark);
       self.namespace.included = true;
+
+      reads
+    } else {
+      HashSet::from_iter(self.exports.values().cloned().collect::<Vec<Mark>>())
     }
   }
 
