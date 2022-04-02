@@ -1,1 +1,1 @@
-export const baz = "baz"
+export const bazz = "baz"

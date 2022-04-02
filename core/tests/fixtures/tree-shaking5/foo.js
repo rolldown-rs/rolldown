@@ -1,6 +1,8 @@
-import { bar } from "./bar"
+import { bar, barr } from "./bar"
 
 export const foo = {
-  bar,
-  baz: "baz"
+  baz: "baz",
+  barr
 }
+
+export { bar }

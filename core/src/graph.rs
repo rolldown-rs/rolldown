@@ -250,10 +250,27 @@ impl Graph {
       });
 
       #[allow(clippy::needless_collect)]
+      let dummy_marks: HashSet<Mark> = Default::default();
       let read_marks = self
         .module_by_id
         .iter()
-        .flat_map(|(_id, module)| module.statements.iter().flat_map(|stmt| stmt.reads.iter()))
+        .flat_map(|(_id, module)| {
+          module.statements.iter().flat_map(|stmt| {
+            // export { a }, export * as foo from "./foo", export default a, is not regarded as reads, the real read place is where we consume those variables, so we have to exclude it
+            // top-level exports is already handled above
+            if !matches!(
+              stmt.node,
+              ModuleItem::ModuleDecl(
+                |ModuleDecl::ExportDefaultExpr(_)| ModuleDecl::ExportNamed(_)
+                  | ModuleDecl::ExportAll(_)
+              )
+            ) {
+              stmt.reads.iter()
+            } else {
+              dummy_marks.iter()
+            }
+          })
+        })
         .cloned()
         .collect::<Vec<_>>();
 
