@@ -86,11 +86,15 @@ pub fn namespace(var_name: (JsWord, Mark), key_values: &HashMap<JsWord, Mark>) -
   props.append(
     &mut key_values
       .into_iter()
-      .map(|(key, value)| {
-        PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
-          key: PropName::Str(str(key)),
-          value: Box::new(Expr::Ident(mark_ident(value))),
-        })))
+      .filter_map(|(key, value)| {
+        if key == "*" {
+          None
+        } else {
+          Some(PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
+            key: PropName::Str(str(key)),
+            value: Box::new(Expr::Ident(mark_ident(value))),
+          }))))
+        }
       })
       .collect(),
   );

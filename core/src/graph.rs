@@ -318,7 +318,6 @@ impl Graph {
               return std::ops::ControlFlow::Break(());
             }
             MarkStmt::ImportNamespace(module_id) => {
-              println!("{}", module_id);
               let module = self.module_by_id.get_mut(module_id).unwrap();
               let discovered_marks = module.include_namespace();
               read_marks.extend(discovered_marks);
