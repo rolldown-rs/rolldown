@@ -302,7 +302,7 @@ impl Graph {
         if visited_marks.contains(&mark) {
           continue;
         }
-        visited_marks.insert(mark.clone());
+        visited_marks.insert(mark);
 
         let from_root_mark = self.symbol_box.lock().unwrap().find_root(mark);
         let matched_decls = self.mark_to_stmt.iter().filter(|pair| {
