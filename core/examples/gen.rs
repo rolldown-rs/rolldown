@@ -23,7 +23,8 @@ fn main() {
   //   GraphContainer::from_single_entry("../node_modules/lodash-es/lodash.js".to_owned());
   let rolldown_build = RolldownBuild::new(NormalizedInputOptions {
     input: vec![
-      "./tests/fixtures/tree_shaking/nested_import_as/index.js".to_owned(),
+      // "./tests/fixtures/tree_shaking/nested_import_ns/index.js".to_owned(),
+      "./tests/fixtures/tree_shaking/nested_export_ns/index.js".to_owned(),
       // "./tests/fixtures/re_export_default/index.js".to_owned(),
       // "./tests/fixtures/re_export_default/index.js".to_owned(),
       // "./tests/fixtures/namespace/index.js".to_owned(),
@@ -37,7 +38,7 @@ fn main() {
   });
   let output = rolldown_build.write(NormalizedOutputOptions {
     // entry_file_names: "[name].js".to_string(),
-    file: Some("./output.js".to_string()),
+    file: Some("./output.mjs".to_string()),
     // dir: Some("./output.js".to_string()),
     ..Default::default()
   });

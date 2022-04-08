@@ -76,7 +76,7 @@ impl Chunk {
     modules.par_iter_mut().for_each(|(_, module)| {
       module.statements.iter_mut().for_each(|stmt| {
         let mut renamer = Renamer {
-          mark_to_names: &mark_to_name,
+          mark_to_name: &mark_to_name,
           symbol_box: self.symbol_box.clone(),
         };
         stmt.node.visit_mut_with(&mut renamer);

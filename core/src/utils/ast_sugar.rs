@@ -58,16 +58,21 @@ pub fn export(exports: &HashMap<JsWord, Mark>) -> ModuleDecl {
     span: Default::default(),
     specifiers: exports
       .into_iter()
-      .map(|(name, mark)| {
-        ExportSpecifier::Named(ExportNamedSpecifier {
-          span: Default::default(),
-          orig: ModuleExportName::Ident(mark_ident(mark)),
-          exported: Some(ModuleExportName::Ident(Ident {
-            sym: name.clone(),
-            ..Ident::dummy()
-          })),
-          is_type_only: false,
-        })
+      .filter_map(|(name, mark)| {
+        // FIXME: we should take internal '*' apart from the real exports
+        if name != "*" {
+          Some(ExportSpecifier::Named(ExportNamedSpecifier {
+            span: Default::default(),
+            orig: ModuleExportName::Ident(mark_ident(mark)),
+            exported: Some(ModuleExportName::Ident(Ident {
+              sym: name.clone(),
+              ..Ident::dummy()
+            })),
+            is_type_only: false,
+          }))
+        } else {
+          None
+        }
       })
       .collect::<Vec<_>>(),
     src: None,

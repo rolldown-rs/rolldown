@@ -20,7 +20,7 @@ use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
 use swc_common::{Mark, Span, SyntaxContext, DUMMY_SP};
-use swc_ecma_ast::{ExportSpecifier, Ident, ImportSpecifier};
+use swc_ecma_ast::{ExportSpecifier, Ident};
 
 use crate::utils::is_decl_or_stmt;
 use swc_ecma_codegen::text_writer::WriteJs;
@@ -124,6 +124,7 @@ impl Module {
         let is_import_namespace = is_import_namespace(&node);
         let is_export_namespace = is_export_namespace(&node);
 
+        // FIXME: fix duplicated resolve, use a cross-thread variable?
         let target_module_id =
           if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &node {
             Some(self.resolve_id(&import_decl.src.value).id)
@@ -143,11 +144,17 @@ impl Module {
 
         let mut stmt = Statement::new(node);
         if let Some(export_mark) = info.export_mark {
-          mark_to_stmt
-            .entry(export_mark)
-            .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
+          if is_export_namespace {
+            mark_to_stmt
+              .entry(export_mark)
+              .or_insert_with(|| MarkStmt::ExportNamespace(target_module_id.clone().unwrap()));
+          } else if is_decl_or_stmt {
+            mark_to_stmt
+              .entry(export_mark)
+              .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
+          }
         }
-        println!("{:#?}", info);
+
         info.declared.iter().for_each(|(name, mark)| {
           self.definitions.insert(name.clone(), idx);
 
@@ -155,10 +162,6 @@ impl Module {
             mark_to_stmt
               .entry(*mark)
               .or_insert_with(|| MarkStmt::ImportNamespace(target_module_id.clone().unwrap()));
-          } else if is_export_namespace {
-            mark_to_stmt
-              .entry(*mark)
-              .or_insert_with(|| MarkStmt::ExportNamespace(target_module_id.clone().unwrap()));
           } else if is_decl_or_stmt {
             mark_to_stmt
               .entry(*mark)
@@ -263,15 +266,9 @@ impl Module {
         .suggested_names
         .get(&"*".into())
         .cloned()
-        .unwrap_or_else(|| {
-          (get_valid_name(nodejs_path::parse(&self.id).name) + "namespace").into()
-        });
+        .unwrap_or_else(|| (get_valid_name(nodejs_path::parse(&self.id).name) + "_ns").into());
       // TODO: We should generate a name which has no conflict.
       // TODO: We might need to check if the name already exsits.
-      println!(
-        "{} {:#?}",
-        suggested_default_export_name, self.declared_symbols
-      );
       assert!(!self
         .declared_symbols
         .contains_key(&suggested_default_export_name));
@@ -300,15 +297,6 @@ impl Module {
       s.declared
         .entry(suggested_default_export_name.clone())
         .or_insert_with(|| self.namespace.mark);
-
-      // mark_to_stmt
-      //   .entry(self.namespace.mark)
-      //   .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
-      // FIXME: actually we should determine whether we should push a new helper statement by analyse importStar usage
-      // eg: import * as foo from "./foo"
-      // console.log(foo) // this will include the helper statement
-      // console.log(foo.bar) // instead this will only include statement bar itself, and `foo.bar` or `foo['bar']` will be replaced to the defined statement
-      // console.log(foo, foo.bar) // this will include the helper statement
 
       self.statements.push(s);
       self
