@@ -23,21 +23,22 @@ fn main() {
   //   GraphContainer::from_single_entry("../node_modules/lodash-es/lodash.js".to_owned());
   let rolldown_build = RolldownBuild::new(NormalizedInputOptions {
     input: vec![
-      // "./tests/fixtures/tree-shaking-advanced/index.js".to_owned(),
-      "./tests/fixtures/re_export_default/index.js".to_owned(),
+      // "./tests/fixtures/tree_shaking/nested_import_ns/index.js".to_owned(),
+      "./tests/fixtures/tree_shaking/nested_export_ns/index.js".to_owned(),
+      // "./tests/fixtures/re_export_default/index.js".to_owned(),
       // "./tests/fixtures/re_export_default/index.js".to_owned(),
       // "./tests/fixtures/namespace/index.js".to_owned(),
       // "../../three.js/src/Three.js".to_owned(),
       // "./tests/fixtures/preact/index.js".to_owned(),
-      // "./tests/fixtures/tree-shaking/index.js".to_owned(),
+      // "./tests/fixtures/tree-shaking1/index.js".to_owned(),
       // "../node_modules/lodash-es/lodash.js".to_owned(),
       // "../node_modules/lodash-es/array.default.js".to_owned()
     ],
-    treeshake: false,
+    treeshake: true,
   });
   let output = rolldown_build.write(NormalizedOutputOptions {
     // entry_file_names: "[name].js".to_string(),
-    file: Some("./output.js".to_string()),
+    file: Some("./output.mjs".to_string()),
     // dir: Some("./output.js".to_string()),
     ..Default::default()
   });

@@ -11,6 +11,7 @@ use swc_ecma_ast::{ModuleDecl, ModuleItem};
 use swc_ecma_visit::VisitMutWith;
 use thiserror::Error;
 
+use crate::graph::MarkStmt;
 use crate::{
   graph::{Msg, Rel},
   module::Module,
@@ -35,7 +36,7 @@ pub struct Worker {
   pub job_queue: Arc<SegQueue<ResolvedId>>,
   pub tx: Sender<Msg>,
   pub processed_id: Arc<DashSet<SmolStr>>,
-  pub mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
+  pub mark_to_stmt: Arc<DashMap<Mark, MarkStmt>>,
 }
 
 impl Worker {

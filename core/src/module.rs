@@ -3,7 +3,7 @@ use crate::scanner::ModuleItemInfo;
 use crate::statement::Statement;
 use crate::symbol_box::SymbolBox;
 
-use crate::utils::{ast_sugar, resolve_id};
+use crate::utils::{ast_sugar, is_export_namespace, is_import_namespace, resolve_id};
 use dashmap::DashMap;
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -20,15 +20,17 @@ use swc_atoms::JsWord;
 
 use swc_common::util::take::Take;
 use swc_common::{Mark, Span, SyntaxContext, DUMMY_SP};
-use swc_ecma_ast::Ident;
+use swc_ecma_ast::{ExportSpecifier, Ident};
 
 use crate::utils::is_decl_or_stmt;
 use swc_ecma_codegen::text_writer::WriteJs;
 use swc_ecma_codegen::Emitter;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut};
 
+use crate::graph::MarkStmt;
 use crate::scanner::rel::{ExportDesc, ReExportDesc};
 use crate::types::ResolvedId;
+use std::iter::FromIterator;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Namespace {
@@ -109,7 +111,7 @@ impl Module {
     &mut self,
     ast: ast::Module,
     module_item_infos: Vec<ModuleItemInfo>,
-    mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
+    mark_to_stmt: Arc<DashMap<Mark, MarkStmt>>,
   ) {
     self.module_span = ast.span;
     self.statements = ast
@@ -119,20 +121,51 @@ impl Module {
       .enumerate()
       .map(|(idx, (node, info))| {
         let is_decl_or_stmt = is_decl_or_stmt(&node);
+        let is_import_namespace = is_import_namespace(&node);
+        let is_export_namespace = is_export_namespace(&node);
+
+        // FIXME: fix duplicated resolve, use a cross-thread variable?
+        let target_module_id =
+          if let ModuleItem::ModuleDecl(ModuleDecl::Import(import_decl)) = &node {
+            Some(self.resolve_id(&import_decl.src.value).id)
+          } else if let ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(named_export)) = &node {
+            if let Some(ExportSpecifier::Namespace(_)) = named_export.specifiers.get(0) {
+              Some(
+                self
+                  .resolve_id(&named_export.src.as_ref().unwrap().value)
+                  .id,
+              )
+            } else {
+              None
+            }
+          } else {
+            None
+          };
+
         let mut stmt = Statement::new(node);
         if let Some(export_mark) = info.export_mark {
-          mark_to_stmt
-            .entry(export_mark)
-            .or_insert_with(|| (self.id.clone(), idx));
+          if is_export_namespace {
+            mark_to_stmt
+              .entry(export_mark)
+              .or_insert_with(|| MarkStmt::ExportNamespace(target_module_id.clone().unwrap()));
+          } else if is_decl_or_stmt {
+            mark_to_stmt
+              .entry(export_mark)
+              .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
+          }
         }
+
         info.declared.iter().for_each(|(name, mark)| {
           self.definitions.insert(name.clone(), idx);
 
-          // Skip declarations brought by `import`
-          if is_decl_or_stmt {
+          if is_import_namespace {
             mark_to_stmt
               .entry(*mark)
-              .or_insert_with(|| (self.id.clone(), idx));
+              .or_insert_with(|| MarkStmt::ImportNamespace(target_module_id.clone().unwrap()));
+          } else if is_decl_or_stmt {
+            mark_to_stmt
+              .entry(*mark)
+              .or_insert_with(|| MarkStmt::Stmt(self.id.clone(), idx));
           }
         });
         stmt.writes = info.writes;
@@ -227,15 +260,13 @@ impl Module {
     }
   }
 
-  pub fn include_namespace(&mut self, mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>) {
+  pub fn include_namespace(&mut self) -> HashSet<Mark> {
     if !self.namespace.included {
       let suggested_default_export_name = self
         .suggested_names
         .get(&"*".into())
         .cloned()
-        .unwrap_or_else(|| {
-          (get_valid_name(nodejs_path::parse(&self.id).name) + "namespace").into()
-        });
+        .unwrap_or_else(|| (get_valid_name(nodejs_path::parse(&self.id).name) + "_ns").into());
       // TODO: We should generate a name which has no conflict.
       // TODO: We might need to check if the name already exsits.
       assert!(!self
@@ -255,6 +286,10 @@ impl Module {
         &self.exports,
       );
       let mut s = Statement::new(ast::ModuleItem::Stmt(namespace));
+
+      let reads = HashSet::from_iter(self.exports.values().cloned());
+      s.reads = reads.clone();
+      s.include();
       let idx = self.statements.len();
       self
         .definitions
@@ -263,14 +298,15 @@ impl Module {
         .entry(suggested_default_export_name.clone())
         .or_insert_with(|| self.namespace.mark);
 
-      mark_to_stmt
-        .entry(self.namespace.mark)
-        .or_insert_with(|| (self.id.clone(), idx));
       self.statements.push(s);
       self
         .declared_symbols
         .insert(suggested_default_export_name, self.namespace.mark);
       self.namespace.included = true;
+
+      reads
+    } else {
+      HashSet::from_iter(self.exports.values().cloned().collect::<Vec<Mark>>())
     }
   }
 

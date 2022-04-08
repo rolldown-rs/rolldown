@@ -127,6 +127,7 @@ dist
 .idea
 
 output.js
+output.mjs
 
 .pnp.*
 .yarn/*

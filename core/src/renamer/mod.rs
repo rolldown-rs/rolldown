@@ -14,7 +14,7 @@ use crate::{ext::SyntaxContextExt, symbol_box::SymbolBox};
 
 #[derive(Debug)]
 pub struct Renamer<'me> {
-  pub mark_to_names: &'me HashMap<Mark, String>,
+  pub mark_to_name: &'me HashMap<Mark, String>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
 }
 
@@ -42,7 +42,7 @@ impl<'me> VisitMut for Renamer<'me> {
   fn visit_mut_ident(&mut self, node: &mut Ident) {
     let mark = node.span.ctxt.as_mark();
     let root_mark = self.symbol_box.lock().unwrap().find_root(mark);
-    if let Some(name) = self.mark_to_names.get(&root_mark) {
+    if let Some(name) = self.mark_to_name.get(&root_mark) {
       node.sym = name.to_string().into()
     }
   }

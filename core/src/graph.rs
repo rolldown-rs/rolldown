@@ -15,19 +15,29 @@ use petgraph::{graph::NodeIndex, visit::EdgeRef, EdgeDirection};
 use rayon::prelude::*;
 use smol_str::SmolStr;
 
+use swc_atoms::JsWord;
 use swc_common::Mark;
+use swc_ecma_ast::{ModuleDecl, ModuleItem};
 
+use crate::scanner::rel::ReExportDesc;
 use crate::{
   external_module::ExternalModule,
   module::Module,
   scanner::rel::RelationInfo,
   symbol_box::SymbolBox,
   types::{NormalizedInputOptions, ResolvedId},
-  utils::{is_decl_or_stmt, resolve_id},
+  utils::resolve_id,
   worker::Worker,
 };
 
 type ModulePetGraph = petgraph::graph::DiGraph<SmolStr, Rel>;
+
+#[derive(Debug)]
+pub enum MarkStmt {
+  Stmt(SmolStr, usize),
+  ImportNamespace(SmolStr),
+  ExportNamespace(SmolStr),
+}
 
 pub struct Graph {
   pub input_options: NormalizedInputOptions,
@@ -37,7 +47,7 @@ pub struct Graph {
   pub ordered_modules: Vec<NodeIndex>,
   pub symbol_box: Arc<Mutex<SymbolBox>>,
   pub module_by_id: HashMap<SmolStr, Box<Module>>,
-  pub mark_to_stmt: Arc<DashMap<Mark, (SmolStr, usize)>>,
+  pub mark_to_stmt: Arc<DashMap<Mark, MarkStmt>>,
 }
 
 // Relation between modules
@@ -209,11 +219,15 @@ impl Graph {
     self.link_module_exports();
     self.link_module();
     self.include();
+
+    println!(
+      "symbol_box after build {:#?}",
+      self.symbol_box.lock().unwrap()
+    );
   }
 
   pub fn include(&mut self) {
     let treeshake = self.input_options.treeshake;
-    log::debug!("mark to stmt {:#?}", self.mark_to_stmt);
     self.module_by_id.par_iter_mut().for_each(|(id, module)| {
       log::debug!(
         "[treeshake]: with treeshake: {:?}, include all module's side effect stmt for {:?}",
@@ -229,7 +243,26 @@ impl Graph {
           "[treeshake]: include entry module's local exports for {:?}",
           resolved_id.id
         );
+
+        // include top-level exports namespace
+        let module = self.module_by_id.get(&resolved_id.id.clone()).unwrap();
+
+        let mut export_namespaced: Option<(JsWord, ReExportDesc)> = None;
+        module.re_exports.iter().for_each(|(name, desc)| {
+          if &desc.local_name == "*" {
+            export_namespaced = Some((name.clone(), desc.clone()))
+          }
+        });
+
+        if let Some((_, desc)) = export_namespaced {
+          let dep_module_id = module.resolved_ids.get(&desc.source).unwrap().clone().id;
+          let dep_module = self.module_by_id.get_mut(dep_module_id.as_str()).unwrap();
+          dep_module.include_namespace();
+        }
+
+        // include other top-level exports
         let module = self.module_by_id.get_mut(&resolved_id.id.clone()).unwrap();
+
         module
           .local_exports
           .values()
@@ -241,39 +274,73 @@ impl Graph {
           });
       });
 
+      let dummy_marks: HashSet<Mark> = Default::default();
+      let mut visited_marks: HashSet<Mark> = Default::default();
+
       #[allow(clippy::needless_collect)]
-      let read_marks = self
+      let mut read_marks = self
         .module_by_id
         .iter()
-        .flat_map(|(_id, module)| module.statements.iter().flat_map(|stmt| stmt.reads.iter()))
+        .flat_map(|(_id, module)| {
+          module.statements.iter().flat_map(|stmt| {
+            // export { a }, export * as foo from "./foo", export default a, is not regarded as reads, the real read place is where we consume(read or entry-point exports) those variables, so we have to exclude it
+            // top-level exports is already handled above
+            if !matches!(
+              stmt.node,
+              ModuleItem::ModuleDecl(|ModuleDecl::ExportDefaultExpr(_)| ModuleDecl::ExportNamed(_))
+            ) {
+              stmt.reads.iter()
+            } else {
+              dummy_marks.iter()
+            }
+          })
+        })
         .cloned()
         .collect::<Vec<_>>();
 
-      read_marks.into_iter().for_each(|mark| {
+      while let Some(mark) = read_marks.pop() {
+        if visited_marks.contains(&mark) {
+          continue;
+        }
+        visited_marks.insert(mark);
+
         let from_root_mark = self.symbol_box.lock().unwrap().find_root(mark);
         let matched_decls = self.mark_to_stmt.iter().filter(|pair| {
           let dest_root_mark = self.symbol_box.lock().unwrap().find_root(*pair.key());
           from_root_mark == dest_root_mark
         });
 
-        matched_decls.into_iter().try_for_each(|pair| {
-          // TODO: recursively add `export *` 's mark
-          let (module_id, idx) = pair.value();
-          let module = self.module_by_id.get_mut(module_id).unwrap();
-          let stmt = &mut module.statements[*idx];
-          if !is_decl_or_stmt(&stmt.node) {
-            return std::ops::ControlFlow::Continue(());
-          }
-          log::debug!(
-            "[treeshake]: module id: {} stmts: {:#?}",
-            module_id.as_str(),
-            stmt,
-          );
-          log::debug!("[treeshake]: include statement {:#?}", stmt.node.clone());
-          stmt.include();
-          std::ops::ControlFlow::Break(())
-        });
-      });
+        matched_decls
+          .into_iter()
+          .for_each(|pair| match pair.value() {
+            MarkStmt::Stmt(module_id, idx) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              let stmt = &mut module.statements[*idx];
+              if !stmt.included {
+                log::debug!("[treeshake]: include statement {:?}", stmt.node.clone());
+                stmt.include();
+              }
+            }
+            MarkStmt::ImportNamespace(module_id) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              log::debug!(
+                "[treeshake]: import namespace visited, including it... {}",
+                module_id
+              );
+              let discovered_marks = module.include_namespace();
+              read_marks.extend(discovered_marks);
+            }
+            MarkStmt::ExportNamespace(module_id) => {
+              let module = self.module_by_id.get_mut(module_id).unwrap();
+              log::debug!(
+                "[treeshake]: export namespace visited, including it... {}",
+                module_id
+              );
+              let discovered_marks = module.include_namespace();
+              read_marks.extend(discovered_marks);
+            }
+          });
+      }
     }
   }
 
@@ -350,20 +417,27 @@ impl Graph {
             );
 
             if &specifier.original == "*" {
-              // REFACTOR
-              dep_module.include_namespace(self.mark_to_stmt.clone());
+              // link `import * as foo` to dep module's namespace mark
+              println!(
+                "link module {:#?} {:#?} depmoduleid {}",
+                specifier, dep_module.namespace, dep_module.id
+              );
+              self
+                .symbol_box
+                .lock()
+                .unwrap()
+                .union(specifier.mark, dep_module.namespace.mark);
+              // NOTE: we include namespace in `include` stage
+              // dep_module.include_namespace(self.mark_to_stmt.clone());
+            } else if let Some(dep_module_exported_mark) =
+              dep_module.exports.get(&specifier.original)
+            {
+              self
+                .symbol_box
+                .lock()
+                .unwrap()
+                .union(specifier.mark, *dep_module_exported_mark);
             }
-
-            let dep_module_exported_mark = dep_module
-              .exports
-              .get(&specifier.original)
-              .expect("Not found");
-
-            self
-              .symbol_box
-              .lock()
-              .unwrap()
-              .union(specifier.mark, *dep_module_exported_mark);
           });
         }
       });
