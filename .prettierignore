@@ -1,5 +1,0 @@
-target
-pnpm-lock.yaml
-**/fixtures/**
-benchmark/*.js
-.yarn

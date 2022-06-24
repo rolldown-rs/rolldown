@@ -1,10 +1,15 @@
 [workspace]
 members = [
-  "./core",
-  "./node-binding",
+  "./crates/*",
 ]
+
+[profile.dev]
+incremental = true
+debug = 2
 
 [profile.release]
 codegen-units = 1
 debug = false
 lto = true
+opt-level = 3
+incremental = true

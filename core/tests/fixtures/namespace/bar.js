@@ -1,1 +1,0 @@
-export * as exported_foo2 from './foo'

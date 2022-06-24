@@ -1,7 +1,0 @@
-{
-  "name": "rolldown-fixtures",
-  "version": "0.0.0",
-  "dependencies": {
-    "is-odd": "link:packages/is-odd"
-  }
-}
