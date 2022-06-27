@@ -5,6 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dev_dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+glob = "0.3.0"
+
 [dependencies]
 rolldown_core = { path = "../rolldown_core" }
 dashmap = "5.0.0"

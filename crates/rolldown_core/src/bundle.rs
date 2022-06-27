@@ -1,4 +1,4 @@
-use crate::{Chunk, Graph, NormalizedOutputOptions};
+use crate::{Chunk, Graph, NormalizedOutputOptions, OutputChunk};
 
 #[derive(Debug)]
 pub struct Bundle<'a> {
@@ -13,11 +13,28 @@ impl<'a> Bundle<'a> {
 
     pub fn generate(&self) -> anyhow::Result<()> {
         let chunks = self.generate_chunks()?;
+        std::fs::create_dir_all("./dist").unwrap();
         chunks.iter().for_each(|chunk| {
             let code = chunk.render(&self.graph);
             std::fs::write(format!("./dist/{}.js", chunk.id), code).unwrap();
+            
         });
         Ok(())
+    }
+
+    pub fn generate_output_chunks(&self) -> anyhow::Result<Vec<OutputChunk>> {
+        let chunks = self.generate_chunks()?;
+        Ok(chunks
+            .iter()
+            .map(|chunk| {
+                let code = chunk.render(&self.graph);
+                // std::fs::write(format!("./dist/{}.js", chunk.id), code).unwrap();
+                OutputChunk {
+                    code,
+                    filename: format!("{}.js", &chunk.id),
+                }
+            })
+            .collect())
     }
 
     fn generate_chunks(&self) -> anyhow::Result<Vec<Chunk>> {
