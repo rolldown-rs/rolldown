@@ -1,17 +1,19 @@
+use swc_atoms::JsWord;
+
 use crate::Chunk;
 
 #[derive(Debug, Default)]
 pub struct ChunkGraph {
   id_to_chunk: hashbrown::HashMap<String, Chunk>,
-  split_point_module_uri_to_chunk_id: hashbrown::HashMap<String, String>,
+  split_point_module_uri_to_chunk_id: hashbrown::HashMap<JsWord, String>,
 }
 
 impl ChunkGraph {
   pub fn add_chunk(&mut self, chunk: Chunk) {
     self
       .split_point_module_uri_to_chunk_id
-      .insert(chunk.id.clone(), chunk.id.clone());
-    self.id_to_chunk.insert(chunk.id.clone(), chunk);
+      .insert(chunk.id.clone(), chunk.id.to_string());
+    self.id_to_chunk.insert(chunk.id.to_string(), chunk);
   }
 
   pub fn chunk_by_id(&self, id: &str) -> Option<&Chunk> {
@@ -39,7 +41,7 @@ impl ChunkGraph {
   }
 
   pub fn chunk_by_split_point_module_uri(&self, uri: &str) -> Option<&Chunk> {
-    let chunk_id = self.split_point_module_uri_to_chunk_id.get(uri)?;
+    let chunk_id = self.split_point_module_uri_to_chunk_id.get(&uri.to_string().into())?;
     self.chunk_by_id(chunk_id)
   }
 

@@ -4,27 +4,27 @@ use nodejs_resolver::Resolver;
 use tracing::instrument;
 
 use crate::{
-  Asset, CompilerOptions, JobContext, LoadArgs, Plugin, PluginContext,
-  PluginResolveHookOutput, ResolveArgs,
+  Asset, JobContext, LoadArgs, Plugin, PluginContext,
+  PluginResolveHookOutput, ResolveArgs, NormalizedInputOptions,
 };
 
 #[derive(Debug)]
 pub struct PluginDriver {
-  pub(crate) options: Arc<CompilerOptions>,
+  pub(crate) options: Arc<NormalizedInputOptions>,
   pub plugins: Vec<Box<dyn Plugin>>,
-  pub resolver: Arc<Resolver>,
+  // pub resolver: Arc<Resolver>,
 }
 
 impl PluginDriver {
   pub fn new(
-    options: Arc<CompilerOptions>,
+    options: Arc<NormalizedInputOptions>,
     plugins: Vec<Box<dyn Plugin>>,
-    resolver: Arc<Resolver>,
+    // resolver: Arc<Resolver>,
   ) -> Self {
     Self {
       options,
       plugins,
-      resolver,
+      // resolver,
     }
   }
 

@@ -1,10 +1,15 @@
 pub mod log;
 use std::path::{Component, Path};
 
+use ast::{Pat, Ident, ObjectPatProp};
 use sugar_path::PathSugar;
 
 mod hooks;
 pub use hooks::*;
+mod side_effect;
+pub use side_effect::*;
+mod shake;
+pub use shake::*;
 
 pub fn uri_to_chunk_name(root: &str, uri: &str) -> String {
   let path = Path::new(uri);
@@ -39,6 +44,7 @@ pub fn parse_to_url(uri: &str) -> url::Url {
 
 
 use once_cell::sync::Lazy;
+use swc_atoms::JsWord;
 use std::sync::Arc;
 use swc::{config::IsModule, Compiler as SwcCompiler};
 use swc_common::{FileName, FilePathMapping, SourceMap};
@@ -61,7 +67,7 @@ pub fn parse_file(
   source_code: String,
   filename: &str,
   // source_type: &SourceType,
-) -> swc_ecma_ast::Program {
+) -> ast::Program {
   let syntax = syntax_by_source_type(filename, "js");
   let compiler = get_swc_compiler();
   let fm = compiler
@@ -71,7 +77,7 @@ pub fn parse_file(
     compiler.parse_js(
       fm,
       handler,
-      swc_ecma_ast::EsVersion::Es2022,
+      ast::EsVersion::Es2022,
       syntax,
       // TODO: Is this correct to think the code is module by default?
       IsModule::Bool(true),
@@ -126,4 +132,66 @@ pub fn syntax_by_source_type(filename: &str, ext: &str) -> Syntax {
       syntax_by_ext(ext)
     }
   }
+}
+
+
+#[inline]
+pub fn collect_ident_of_pat(pat: &Pat) -> Vec<&Ident> {
+  match pat {
+    // export const a = 1;
+    Pat::Ident(pat) => vec![&pat.id],
+    // export const [a] = [1]
+    Pat::Array(pat) => pat
+      .elems
+      .iter()
+      .flat_map(|pat| pat.as_ref().map_or(vec![], collect_ident_of_pat))
+      .collect(),
+    Pat::Object(pat) => pat
+      .props
+      .iter()
+      .flat_map(|prop_pat| match prop_pat {
+        ObjectPatProp::Assign(pat) => {
+          vec![&pat.key]
+        }
+        ObjectPatProp::KeyValue(pat) => collect_ident_of_pat(pat.value.as_ref()),
+        ObjectPatProp::Rest(pat) => collect_ident_of_pat(pat.arg.as_ref()),
+      })
+      .collect(),
+    Pat::Assign(pat) => collect_ident_of_pat(pat.left.as_ref()),
+    _ => vec![],
+  }
+}
+
+pub fn collect_mut_ident_of_pat(pat: &mut Pat) -> Vec<&mut Ident> {
+  match pat {
+    // export const a = 1;
+    Pat::Ident(pat) => vec![&mut pat.id],
+    // export const [a] = [1]
+    Pat::Array(pat) => pat
+      .elems
+      .iter_mut()
+      .flat_map(|pat| pat.as_mut().map_or(vec![], collect_mut_ident_of_pat))
+      .collect(),
+    Pat::Object(pat) => pat
+      .props
+      .iter_mut()
+      .flat_map(|prop_pat| match prop_pat {
+        ObjectPatProp::Assign(pat) => {
+          vec![&mut pat.key]
+        }
+        ObjectPatProp::KeyValue(pat) => collect_mut_ident_of_pat(pat.value.as_mut()),
+        ObjectPatProp::Rest(pat) => collect_mut_ident_of_pat(pat.arg.as_mut()),
+      })
+      .collect(),
+    Pat::Assign(pat) => collect_mut_ident_of_pat(pat.left.as_mut()),
+    _ => vec![],
+  }
+}
+
+#[inline]
+pub fn collect_js_word_of_pat(pat: &Pat) -> Vec<JsWord> {
+  collect_ident_of_pat(pat)
+    .into_iter()
+    .map(|id| id.sym.clone())
+    .collect()
 }
