@@ -15,7 +15,7 @@ use swc_ecma_visit::VisitMutWith;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
 use crate::{
-    get_swc_compiler, load, parse_file, resolve, DependencyScanner, LoadArgs, Module, Msg,
+    get_swc_compiler, load, parse_file, resolve, Scanner, LoadArgs, Module, Msg,
     PluginDriver, ResolveArgs,
 };
 
@@ -128,7 +128,7 @@ impl ResolvingModuleJob {
             ));
         });
 
-        let mut scanner = DependencyScanner::default();
+        let mut scanner = Scanner::default();
 
         ast.visit_mut_with(&mut scanner);
 

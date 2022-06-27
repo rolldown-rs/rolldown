@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct DependencyScanner {
+pub struct Scanner {
     pub dependencies: LinkedHashSet<JsWord>,
     pub dyn_dependencies: HashSet<JsWord>,
     pub imports: HashMap<JsWord, HashSet<Specifier>>,
@@ -23,7 +23,7 @@ pub struct DependencyScanner {
     pub side_effect: Option<SideEffect>,
 }
 
-impl DependencyScanner {
+impl Scanner {
     fn add_dependency(&mut self, specifier: JsWord) {
         self.dependencies.insert_if_absent(specifier);
     }
@@ -161,7 +161,7 @@ impl DependencyScanner {
     }
 }
 
-impl VisitMut for DependencyScanner {
+impl VisitMut for Scanner {
     noop_visit_mut_type!();
 
     fn visit_mut_module_item(&mut self, node: &mut ModuleItem) {
