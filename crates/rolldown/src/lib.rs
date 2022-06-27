@@ -16,7 +16,7 @@ impl Rolldown {
 
     pub async fn write(&mut self) -> anyhow::Result<()> {
         self.graph.build().await?;
-        Bundle::new(Default::default(), &mut self.graph).generate()?;
+        Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).generate()?;
 
         tracing::trace!("graph {:#?}", self.graph);
         Ok(())
@@ -25,7 +25,7 @@ impl Rolldown {
     pub async fn generate(&mut self) -> anyhow::Result<RolldownOutput> {
         self.graph.build().await?;
         let output_chunks =
-            Bundle::new(Default::default(), &mut self.graph).generate_output_chunks()?;
+            Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).generate_output_chunks()?;
 
         tracing::trace!("graph {:#?}", self.graph);
         Ok(RolldownOutput {

@@ -58,6 +58,7 @@ impl Graph {
                     .depended_modules(&self.module_by_id)
                     .into_iter()
                     .rev()
+                    .filter(|module| !visited.contains(&module.id))
                     .for_each(|dep| {
                         stack.push(dep.id.clone());
                     });
