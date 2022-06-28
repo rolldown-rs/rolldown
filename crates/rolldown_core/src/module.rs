@@ -6,7 +6,9 @@ use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
 use swc_common::Mark;
 
-use crate::{LocalExports, MergedExports, ModuleById, SideEffect, Specifier};
+use crate::{
+    ufriend::UFriend, LocalExports, MergedExports, ModuleById, SideEffect, Specifier, SpecifierId,
+};
 
 pub struct Module {
     pub exec_order: usize,
@@ -16,12 +18,13 @@ pub struct Module {
     // source: String,
     pub ast: ast::Program,
     pub top_level_mark: Mark,
-    pub imports: HashMap<JsWord, HashSet<Specifier>>,
+    pub imports: HashMap<JsWord, HashSet<SpecifierId>>,
     pub re_exports: HashMap<JsWord, HashSet<Specifier>>,
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
     pub resolved_module_ids: HashMap<JsWord, JsWord>,
+    pub declared_ids: HashSet<Id>,
     pub included: bool,
     pub used_ids: HashSet<Id>,
 }
@@ -43,16 +46,19 @@ impl Module {
             .collect()
     }
 
-    pub fn mark_used_id(&mut self, id: &JsWord) {
-        if id == "*" {
+    pub fn mark_used_id(&mut self, name: &JsWord, id: &Id, uf: &mut UFriend<Id>) {
+        if name == "*" {
             // TODO: generate namespace export
         } else {
-            self.used_ids.insert(
-                self.merged_exports
-                    .get(id)
-                    .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", id, self.id))
-                    .clone(),
-            );
+            uf.add_key(id.clone());
+            let local_id = self
+                .merged_exports
+                .get(name)
+                .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", name, self.id))
+                .clone();
+            uf.add_key(local_id.clone());
+            uf.union(&id, &local_id);
+            self.used_ids.insert(local_id);
         }
     }
 

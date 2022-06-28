@@ -1,12 +1,13 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 
 use crate::{
-    get_swc_compiler, JobContext, LoadArgs, Module, NormalizedInputOptions, Plugin, PluginDriver,
-    ResolveArgs, ResolvingModuleJob, SideEffect,
+    get_swc_compiler, ufriend::UFriend, JobContext, LoadArgs, Module, NormalizedInputOptions,
+    Plugin, PluginDriver, ResolveArgs, ResolvingModuleJob, SideEffect,
 };
+use ast::Id;
 use dashmap::DashSet;
 use hashbrown::{HashMap, HashSet};
 use swc_atoms::JsWord;
@@ -20,6 +21,7 @@ pub struct Graph {
     plugin_driver: Arc<RwLock<PluginDriver>>,
     pub resolved_entries: Vec<JsWord>,
     pub unresolved_mark: Mark,
+    pub uf: Mutex<UFriend<Id>>,
 }
 
 impl Graph {
@@ -30,6 +32,7 @@ impl Graph {
             plugin_driver: Arc::new(RwLock::new(PluginDriver::new(options, plugins))),
             resolved_entries: Default::default(),
             unresolved_mark: get_swc_compiler().run(|| Mark::new()),
+            uf: Mutex::new(UFriend::new()),
         }
     }
 
@@ -181,23 +184,27 @@ impl Graph {
             let imports = module
                 .imports
                 .iter()
-                .map(|(unresolved_id, names)| {
+                .map(|(unresolved_module_id, sids)| {
                     (
                         module
                             .resolved_module_ids
-                            .get(&unresolved_id)
+                            .get(&unresolved_module_id)
                             .unwrap()
                             .clone(),
-                        names.clone(),
+                        sids.clone(),
                     )
                 })
                 .collect::<Vec<_>>();
             std::mem::drop(module);
-            imports.into_iter().for_each(|(id, names)| {
-                let imported_module = self.module_by_id.get_mut(&id).unwrap();
-                names
-                    .into_iter()
-                    .for_each(|name| imported_module.mark_used_id(&name.orginal));
+            imports.into_iter().for_each(|(module_id, sids)| {
+                let imported_module = self.module_by_id.get_mut(&module_id).unwrap();
+                sids.into_iter().for_each(|name| {
+                    imported_module.mark_used_id(
+                        &name.orginal,
+                        &name.alias,
+                        &mut self.uf.lock().unwrap(),
+                    )
+                });
             });
         });
     }

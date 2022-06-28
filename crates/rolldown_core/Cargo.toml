@@ -34,3 +34,4 @@ swc_atoms = "0.2.11"    # Atoms for the swc project.
 swc_ecma_transforms = "0.158.0"                 # rust port of babel and closure compiler.
 swc_ecma_utils = "0.86.1"     # Utilities for swc ecmascript ast nodes
 swc_ecma_transforms_optimization = "0.131.0"    # rust port of babel and closure compiler.
+ena = "0.14.0"

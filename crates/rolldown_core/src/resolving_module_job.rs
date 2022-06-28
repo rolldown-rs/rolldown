@@ -128,9 +128,14 @@ impl ResolvingModuleJob {
             ));
         });
 
-        let mut scanner = Scanner::default();
+        let mut scanner = Scanner {
+          top_level_mark,
+          ..Default::default()
+        };
 
-        ast.visit_mut_with(&mut scanner);
+        get_swc_compiler().run(|| {
+          ast.visit_mut_with(&mut scanner);
+        });
 
 
 
@@ -149,6 +154,7 @@ impl ResolvingModuleJob {
             dyn_dependencies: scanner.dyn_dependencies,
             included: true,
             used_ids: Default::default(),
+            declared_ids: scanner.declared_ids,
             // source: source_code,
             // dependecies: scanner.dependencies,
             // dyn_dependecies: scanner.dyn_dependencies,

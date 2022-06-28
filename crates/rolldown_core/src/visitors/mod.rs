@@ -1,8 +1,9 @@
-use ast::{CallExpr, Callee, ExportSpecifier, Expr, Id, Lit, ModuleDecl, ModuleItem};
+use ast::{CallExpr, Callee, ExportSpecifier, Expr, Id, Ident, Lit, ModuleDecl, ModuleItem};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common;
+use swc_common::{self, DUMMY_SP};
+use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 mod export_remover;
 pub use export_remover::*;
@@ -16,11 +17,13 @@ use crate::{
 pub struct Scanner {
     pub dependencies: LinkedHashSet<JsWord>,
     pub dyn_dependencies: HashSet<JsWord>,
-    pub imports: HashMap<JsWord, HashSet<Specifier>>,
+    pub imports: HashMap<JsWord, HashSet<SpecifierId>>,
     pub re_exports: HashMap<JsWord, HashSet<Specifier>>,
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
+    pub declared_ids: HashSet<Id>,
+    pub top_level_mark: swc_common::Mark,
 }
 
 impl Scanner {
@@ -58,25 +61,21 @@ impl Scanner {
                                 ast::ModuleExportName::Str(_) => todo!(),
                             })
                             .unwrap_or_else(|| s.local.sym.clone());
-                        let alias = if s.imported.is_some() {
-                            Some(s.local.sym.clone())
-                        } else {
-                            None
-                        };
-                        imports.insert(Specifier {
+                        let alias = s.local.to_id();
+                        imports.insert(SpecifierId {
                             alias,
                             orginal: original,
                         });
                     }
                     ast::ImportSpecifier::Default(s) => {
-                        imports.insert(Specifier {
-                            alias: Some(s.local.sym.clone()),
+                        imports.insert(SpecifierId {
+                            alias: s.local.to_id(),
                             orginal: "default".into(),
                         });
                     }
                     ast::ImportSpecifier::Namespace(s) => {
-                        imports.insert(Specifier {
-                            alias: Some(s.local.sym.clone()),
+                        imports.insert(SpecifierId {
+                            alias: s.local.to_id(),
                             orginal: "*".into(),
                         });
                     }
@@ -180,6 +179,18 @@ impl VisitMut for Scanner {
         self.add_dynamic_import(node);
         node.visit_mut_children_with(self);
     }
+
+    fn visit_mut_ident(&mut self, node: &mut Ident) {
+        let ident = Ident {
+            sym: node.sym.clone(),
+            span: DUMMY_SP.apply_mark(self.top_level_mark),
+            optional: false,
+        };
+        if node.to_id() == ident.to_id() {
+            self.declared_ids.insert(node.to_id());
+        }
+        node.visit_mut_children_with(self);
+    }
 }
 
 // pub type Specifier = ast::ImportSpecifier;
@@ -191,8 +202,8 @@ pub struct Specifier {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpecifierId {
-    alias: Option<Id>,
-    orginal: Id,
+    pub alias: Id,
+    pub orginal: JsWord,
 }
 
 fn ident_of_module_export_name(name: &ast::ModuleExportName) -> ast::Ident {
