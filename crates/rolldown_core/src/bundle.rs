@@ -14,7 +14,7 @@ impl<'a> Bundle<'a> {
         Self { input_options, options, graph }
     }
 
-    pub fn generate(&self) -> anyhow::Result<()> {
+    pub fn old_should_not_be_used_generate(&self) -> anyhow::Result<()> {
         let chunks = self.generate_chunks()?;
         std::fs::create_dir_all(format!("{}/dist", self.input_options.root.as_str())).unwrap();
         chunks.iter().for_each(|chunk| {
@@ -25,7 +25,7 @@ impl<'a> Bundle<'a> {
         Ok(())
     }
 
-    pub fn generate_output_chunks(&self) -> anyhow::Result<Vec<OutputChunk>> {
+    pub fn generate(&self) -> anyhow::Result<Vec<OutputChunk>> {
         let chunks = self.generate_chunks()?;
         Ok(chunks
             .iter()

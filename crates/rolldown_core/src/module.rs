@@ -7,7 +7,7 @@ use swc_atoms::JsWord;
 use swc_common::{util::take::Take, Mark, Span};
 
 use crate::{
-    ufriend::UFriend, LocalExports, MergedExports, ModuleById, SideEffect, Specifier, SpecifierId,
+    ufriend::UFriend, LocalExports, MergedExports, ModuleById, SideEffect, Specifier, SpecifierId, ResolvedId,
 };
 
 pub struct Module {
@@ -23,12 +23,12 @@ pub struct Module {
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
-    pub resolved_module_ids: HashMap<JsWord, JsWord>,
+    pub resolved_module_ids: HashMap<JsWord, ResolvedId>,
     pub declared_ids: HashSet<Id>,
     pub included: bool,
     pub used_ids: HashSet<Id>,
     pub suggested_names: HashMap<JsWord, JsWord>,
-    pub is_entry: bool,
+    pub is_user_defined_entry: bool,
 }
 
 impl Module {
@@ -40,7 +40,7 @@ impl Module {
         self.dependencies
             .iter()
             .map(|unresolved_id| self.resolved_module_ids.get(unresolved_id).unwrap())
-            .filter_map(|dep| module_graph.get(dep))
+            .filter_map(|dep| module_graph.get(&dep.id))
             .collect()
     }
 
@@ -48,7 +48,7 @@ impl Module {
         self.dyn_dependencies
             .iter()
             .map(|unresolved_id| self.resolved_module_ids.get(unresolved_id).unwrap())
-            .filter_map(|dep| module_graph.get(dep))
+            .filter_map(|dep| module_graph.get(&dep.id))
             .collect()
     }
 

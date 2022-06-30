@@ -5,7 +5,7 @@ use std::sync::{
 
 use crate::{
     get_swc_compiler, ufriend::UFriend, JobContext, LoadArgs, Module, NormalizedInputOptions,
-    Plugin, PluginDriver, ResolveArgs, ResolvingModuleJob, SideEffect,
+    Plugin, PluginDriver, ResolveArgs, ResolvingModuleJob, SideEffect, ResolvedId,
 };
 use ast::Id;
 use dashmap::DashSet;
@@ -144,7 +144,7 @@ impl Graph {
                 .map(|(unresolved_id, names)| {
                     let module = self
                         .module_by_id
-                        .get(module.resolved_module_ids.get(unresolved_id).unwrap())
+                        .get(&module.resolved_module_ids.get(unresolved_id).unwrap().id)
                         .unwrap();
                     names
                         .iter()
@@ -197,7 +197,7 @@ impl Graph {
                 .collect::<Vec<_>>();
             std::mem::drop(module);
             imports.into_iter().for_each(|(module_id, sids)| {
-                let imported_module = self.module_by_id.get_mut(&module_id).unwrap();
+                let imported_module = self.module_by_id.get_mut(&module_id.id).unwrap();
                 sids.into_iter().for_each(|name| {
                     imported_module.mark_used_id(
                         &name.orginal,
@@ -216,7 +216,7 @@ impl Graph {
 
         let visited_module_id = Arc::new(DashSet::new());
 
-        let mut resolved_ids_for_all_module: HashMap<Option<JsWord>, HashMap<JsWord, JsWord>> =
+        let mut resolved_ids_for_all_module: HashMap<Option<JsWord>, HashMap<JsWord, ResolvedId>> =
             HashMap::new();
 
         self.options.input.iter().for_each(|(name, dep)| {
@@ -249,11 +249,11 @@ impl Graph {
                     Msg::TaskCanceled => {
                         active_task_count.fetch_sub(1, Ordering::SeqCst);
                     }
-                    Msg::DependencyReference(importer, resolved_uri) => {
+                    Msg::DependencyReference(importer, spec,resolved_uri) => {
                         resolved_ids_for_all_module
                             .entry(importer)
                             .or_default()
-                            .insert(resolved_uri.0, resolved_uri.1);
+                            .insert(spec, resolved_uri);
                     }
                     Msg::TaskErrorEncountered(err) => {
                         active_task_count.fetch_sub(1, Ordering::SeqCst);
@@ -275,6 +275,7 @@ impl Graph {
             .remove(&None)
             .unwrap()
             .into_values()
+            .map(|rid| rid.id)
             .collect::<Vec<_>>();
 
         self.module_by_id.values_mut().for_each(|module| {
@@ -292,7 +293,7 @@ impl Graph {
 
 #[derive(Debug)]
 pub enum Msg {
-    DependencyReference(Option<JsWord>, (JsWord, JsWord)),
+    DependencyReference(Option<JsWord>, JsWord, ResolvedId),
     TaskFinished(Box<Module>),
     TaskCanceled,
     TaskErrorEncountered(anyhow::Error),

@@ -5,7 +5,7 @@ use tracing::instrument;
 
 use crate::{
   Asset, JobContext, LoadArgs, Plugin, PluginContext,
-  PluginResolveHookOutput, ResolveArgs, NormalizedInputOptions,
+  PluginResolveHookOutput, ResolveArgs, NormalizedInputOptions, PluginLoadHookOutput,
 };
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ impl PluginDriver {
     &self,
     args: LoadArgs<'_>,
     job_ctx: &mut JobContext,
-  ) -> PluginResolveHookOutput {
+  ) -> PluginLoadHookOutput {
     for plugin in &self.plugins {
       let output = plugin
         .load(PluginContext::with_context(job_ctx), args.clone())

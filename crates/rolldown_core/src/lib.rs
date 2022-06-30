@@ -31,3 +31,15 @@ pub(crate) use ufriend::*;
 pub type ModuleById = HashMap<JsWord, Module>;
 pub type LocalExports = HashMap<JsWord, Id>;
 pub type MergedExports = HashMap<JsWord, Id>;
+
+#[derive(Debug, Clone)]
+pub struct ResolvedId {
+    pub id: JsWord,
+    pub external: bool,
+}
+
+impl ResolvedId {
+    pub fn new<T: Into<JsWord>>(id: T, external: bool) -> Self {
+        Self { id: id.into(), external }
+    }
+}

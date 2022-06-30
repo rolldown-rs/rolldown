@@ -81,7 +81,7 @@ impl ResolvingModuleJob {
     }
 
     pub async fn resolve_module(&mut self) -> anyhow::Result<Option<Module>> {
-        let id: JsWord = {
+        let id = {
             resolve(
                 ResolveArgs {
                     importer: self.dependency.importer.as_deref(),
@@ -91,35 +91,34 @@ impl ResolvingModuleJob {
                 &mut self.context,
             )
             .await?
-            .into()
         };
 
         tracing::trace!("resolved id {:?}", id);
 
-        self.tx
+        self
             .send(Msg::DependencyReference(
                 self.dependency.importer.clone().into(),
-                (self.dependency.specifier.clone(), id.clone().into()),
-            ))
-            .unwrap();
+                self.dependency.specifier.clone(),
+                id.clone()
+            ));
 
-        if self.context.visited_module_identity.contains(&id) {
+        if self.context.visited_module_identity.contains(&id.id) {
             return Ok(None);
         }
 
-        self.context.visited_module_identity.insert(id.clone());
+        self.context.visited_module_identity.insert(id.id.clone());
 
         let source_code = load(
             &*self.plugin_driver.read().await,
-            LoadArgs { id: &id },
+            LoadArgs { id: &id.id },
             &mut self.context,
         )
         .await?;
         // TODO: transform
 
-        let mut ast = parse_file(source_code, &id);
+        let mut ast = parse_file(source_code, &id.id);
 
-        self.pre_scan_dependencies(&ast, id.clone().into());
+        self.pre_scan_dependencies(&ast, id.id.clone().into());
 
         let top_level_mark = get_swc_compiler().run(|| Mark::new());
 
@@ -145,7 +144,7 @@ impl ResolvingModuleJob {
         let module = Module {
             exec_order: usize::MAX,
             ast,
-            id,
+            id: id.id,
             top_level_mark,
             imports: scanner.imports,
             re_exports: scanner.re_exports,
@@ -159,7 +158,7 @@ impl ResolvingModuleJob {
             used_ids: Default::default(),
             declared_ids: scanner.declared_ids,
             suggested_names: Default::default(),
-            is_entry: self.is_entry,
+            is_user_defined_entry: self.is_entry,
             // source: source_code,
             // dependecies: scanner.dependencies,
             // dyn_dependecies: scanner.dyn_dependencies,

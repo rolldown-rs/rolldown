@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use crate::{get_swc_compiler, ClearMark, ExportRemover, Graph, NormalizedInputOptions, Renamer};
 use crate::{shake, ufriend::UFriend, Module, ModuleById};
-use ast::{EsVersion, Id, Str};
+use ast::{EsVersion, Id, ModuleDecl, ModuleItem, Str};
 use hashbrown::HashSet;
 use petgraph::unionfind::UnionFind;
 use rayon::prelude::*;
@@ -61,14 +61,22 @@ impl Chunk {
                 });
             });
 
-        modules.iter().for_each(|(_, module)| {
+        modules.iter().enumerate().for_each(|(index, (_, module))| {
             let ast = &module.ast as *const _ as *mut ast::Program;
             let mut renamer = Renamer {
                 uf,
                 rename_map: &id_to_name,
             };
             unsafe {
-                if !module.merged_exports.is_empty() {
+                (&mut *ast)
+                    .as_mut_module()
+                    .unwrap()
+                    .body
+                    .retain(|module_item| {
+                        !matches!(module_item, ModuleItem::ModuleDecl(ModuleDecl::Import(_)))
+                    });
+                // TODO: we should not use `is_user_defined_entry `
+                if module.is_user_defined_entry && !module.merged_exports.is_empty() {
                     (&mut *ast)
                         .as_mut_module()
                         .unwrap()
@@ -100,7 +108,7 @@ impl Chunk {
             .iter()
             .map(|module| (module, module.ast.as_module().clone().unwrap()))
             .map(|(module, ast)| {
-                let mut ast = if input_options.treeshake {
+                let ast = if input_options.treeshake {
                     shake(*module, ast.clone(), graph.unresolved_mark)
                 } else {
                     ast.clone()

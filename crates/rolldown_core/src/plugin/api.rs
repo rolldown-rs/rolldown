@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 
 use crate::{
-  JobContext, LoadArgs, PluginContext, ResolveArgs,
+  JobContext, LoadArgs, PluginContext, ResolveArgs, ResolvedId,
 };
 
 use anyhow::Result;
 pub type PluginBuildStartHookOutput = Result<()>;
 pub type PluginBuildEndHookOutput = Result<()>;
 pub type PluginLoadHookOutput = Result<Option<String>>;
-pub type PluginResolveHookOutput = Result<Option<String>>;
+pub type PluginResolveHookOutput = Result<Option<ResolvedId>>;
 // pub type PluginTransformAstHookOutput = Result<ast::Module>;
 // pub type PluginParseOutput = Result<RspackAst>;
 // pub type PluginGenerateOutput = Result<String>;

@@ -1,4 +1,6 @@
-use crate::{parse_to_url, JobContext, LoadArgs, PluginDriver, ResolveArgs, TransformArgs};
+use crate::{
+    parse_to_url, JobContext, LoadArgs, PluginDriver, ResolveArgs, ResolvedId, TransformArgs,
+};
 use nodejs_resolver::ResolveResult;
 use std::path::Path;
 use sugar_path::PathSugar;
@@ -27,7 +29,7 @@ pub async fn resolve(
     args: ResolveArgs<'_>,
     plugin_driver: &PluginDriver,
     job_context: &mut JobContext,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<ResolvedId> {
     // TODO: plugins
 
     let plugin_output = plugin_driver.resolve(args.clone(), job_context).await?;
@@ -54,6 +56,6 @@ pub async fn resolve(
             .join(Path::new(args.specifier))
             .resolve();
         path.set_extension("js");
-        path.to_string_lossy().to_string()
+        ResolvedId::new(path.to_string_lossy().to_string(), false)
     })
 }

@@ -1,10 +1,12 @@
-use ast::{CallExpr, Callee, ExportSpecifier, Expr, Id, Ident, Lit, ModuleDecl, ModuleItem};
+use ast::{
+    BindingIdent, CallExpr, Callee, ExportSpecifier, Expr, Id, Ident, Lit, ModuleDecl, ModuleItem,
+};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
 use swc_common::{self, DUMMY_SP};
 use swc_ecma_utils::quote_ident;
-use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
+use swc_ecma_visit::{noop_visit_mut_type, Visit, VisitMut, VisitMutWith, VisitWith};
 mod export_remover;
 pub use export_remover::*;
 mod renamer;
@@ -139,12 +141,8 @@ impl Scanner {
                         .insert(decl.ident.sym.clone(), decl.ident.to_id());
                 }
                 ast::Decl::Var(decl) => {
-                    decl.decls.iter().for_each(|decl| {
-                        collect_ident_of_pat(&decl.name)
-                            .into_iter()
-                            .for_each(|ident| {
-                                self.local_exports.insert(ident.sym.clone(), ident.to_id());
-                            });
+                    decl.visit_with(&mut VarDeclCollector {
+                        local_exports: &mut self.local_exports,
                     });
                 }
                 ast::Decl::TsInterface(_) => todo!(),
@@ -215,12 +213,27 @@ fn ident_of_module_export_name(name: &ast::ModuleExportName) -> ast::Ident {
     }
 }
 
-
 pub struct ClearMark;
 
 impl VisitMut for ClearMark {
     noop_visit_mut_type!();
     fn visit_mut_ident(&mut self, node: &mut Ident) {
         node.span = DUMMY_SP;
+    }
+}
+
+pub struct VarDeclCollector<'a> {
+    local_exports: &'a mut HashMap<JsWord, Id>,
+}
+
+impl<'a> Visit for VarDeclCollector<'a> {
+    fn visit_binding_ident(&mut self, n: &BindingIdent) {
+        let id = n.id.to_id();
+        self.local_exports.insert(id.0.clone(), id);
+    }
+
+    fn visit_assign_pat_prop(&mut self, n: &ast::AssignPatProp) {
+        let id = n.key.to_id();
+        self.local_exports.insert(id.0.clone(), id);
     }
 }

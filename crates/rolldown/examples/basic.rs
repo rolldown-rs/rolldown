@@ -10,8 +10,8 @@ async fn main() {
     // let guard = log::enable_tracing_by_env_with_chrome_layer();
     enable_tracing_by_env();
     let mut compiler = rolldown(NormalizedInputOptions {
-        input: HashMap::from([("main".to_string(), "./src/index.js".to_string().into())]),
-        root: Path::new("./examples/basic")
+        input: HashMap::from([("main".to_string(), "./index.js".to_string().into())]),
+        root: Path::new("./crates/rolldown/fixtures/basic-import")
           .resolve()
           .to_string_lossy()
           .to_string(),
