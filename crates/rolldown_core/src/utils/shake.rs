@@ -1,4 +1,4 @@
-use crate::{ExportRemover, Module};
+use crate::{TreeShakeExportRemover, Module};
 use ast::Id;
 use hashbrown::HashSet;
 use swc_common::{Mark, chain};
@@ -9,7 +9,7 @@ use crate::get_swc_compiler;
 
 pub fn shake(module: &Module, ast: ast::Module, unresolved_mark: Mark) -> ast::Module {
     get_swc_compiler().run(|| {
-        let export_remover = ExportRemover {
+        let export_remover = TreeShakeExportRemover {
             unused_ids: module.unused_ids(),
         };
         let mut pass = chain!(export_remover, simplify::simplifier(

@@ -7,6 +7,8 @@ use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 mod export_remover;
 pub use export_remover::*;
+mod renamer;
+pub use renamer::*;
 
 use crate::{
     collect_ident_of_pat, collect_js_word_of_pat, side_effect_of_module_item, LocalExports,
@@ -210,5 +212,15 @@ fn ident_of_module_export_name(name: &ast::ModuleExportName) -> ast::Ident {
     match name {
         ast::ModuleExportName::Ident(id) => id.clone(),
         ast::ModuleExportName::Str(_) => unreachable!(),
+    }
+}
+
+
+pub struct ClearMark;
+
+impl VisitMut for ClearMark {
+    noop_visit_mut_type!();
+    fn visit_mut_ident(&mut self, node: &mut Ident) {
+        node.span = DUMMY_SP;
     }
 }

@@ -18,7 +18,7 @@ impl<'a> Bundle<'a> {
         let chunks = self.generate_chunks()?;
         std::fs::create_dir_all(format!("{}/dist", self.input_options.root.as_str())).unwrap();
         chunks.iter().for_each(|chunk| {
-            let code = chunk.render(&self.graph);
+            let code = chunk.render(&self.graph, &self.input_options);
             std::fs::write(format!("{}/dist/{}.js", self.input_options.root.as_str(), chunk.id), code).unwrap();
             
         });
@@ -30,7 +30,7 @@ impl<'a> Bundle<'a> {
         Ok(chunks
             .iter()
             .map(|chunk| {
-                let code = chunk.render(&self.graph);
+                let code = chunk.render(&self.graph, &self.input_options);
                 // std::fs::write(format!("./dist/{}.js", chunk.id), code).unwrap();
                 OutputChunk {
                     code,

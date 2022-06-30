@@ -61,9 +61,15 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
         self.ena.unioned(*ena_key1, *ena_key2)
     }
 
-    pub fn find_root(&mut self, key: &Key) -> &Key {
+    pub fn asset_find_root(&mut self, key: &Key) -> &Key {
         let ena_key = self.index_to_ena_key_map.get(key).unwrap_or_else(|| panic!("key: {:?}", key));
         let ena_root = self.ena.find(*ena_key);
         &self.ena_key_to_index[&ena_root]
+    }
+
+    pub fn find_root(&mut self, key: &Key) -> Option<&Key> {
+        let ena_key = self.index_to_ena_key_map.get(key)?;
+        let ena_root = self.ena.find(*ena_key);
+        self.ena_key_to_index.get(&ena_root)
     }
 }

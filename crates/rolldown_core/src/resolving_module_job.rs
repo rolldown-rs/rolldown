@@ -36,6 +36,7 @@ pub enum ResolveKind {
 }
 
 pub struct ResolvingModuleJob {
+    is_entry: bool,
     context: JobContext,
     dependency: Dependency,
     tx: UnboundedSender<Msg>,
@@ -48,6 +49,7 @@ impl ResolvingModuleJob {
         dependency: Dependency,
         tx: UnboundedSender<Msg>,
         plugin_driver: Arc<RwLock<PluginDriver>>,
+        is_entry: bool,
     ) -> Self {
         context.active_task_count.fetch_add(1, Ordering::SeqCst);
 
@@ -56,6 +58,7 @@ impl ResolvingModuleJob {
             dependency,
             tx,
             plugin_driver,
+            is_entry,
         }
     }
     pub async fn run(mut self) {
@@ -155,18 +158,20 @@ impl ResolvingModuleJob {
             included: true,
             used_ids: Default::default(),
             declared_ids: scanner.declared_ids,
+            suggested_names: Default::default(),
+            is_entry: self.is_entry,
             // source: source_code,
             // dependecies: scanner.dependencies,
             // dyn_dependecies: scanner.dyn_dependencies,
             // imports: Default::default(),
         };
 
-        tracing::trace!("parsed module {:?}", module);
+        tracing::trace!("parsed module {:#?}", module);
 
         Ok(Some(module))
     }
 
-    fn fork(&self, dep: Dependency) {
+    fn fork(&self, dep: Dependency, is_entry: bool,) {
         let task = ResolvingModuleJob::new(
             JobContext {
                 module_name: None,
@@ -175,6 +180,7 @@ impl ResolvingModuleJob {
             dep,
             self.tx.clone(),
             self.plugin_driver.clone(),
+            is_entry,
         );
 
         tokio::task::spawn(async move {
@@ -214,7 +220,7 @@ impl ResolvingModuleJob {
                 }
             })
             .for_each(|depenency| {
-                self.fork(depenency);
+                self.fork(depenency, false);
             });
 
         None

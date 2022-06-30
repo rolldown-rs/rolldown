@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
-use ast::Id;
+use ast::{Id, ModuleItem};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common::Mark;
+use swc_common::{util::take::Take, Mark, Span};
 
 use crate::{
     ufriend::UFriend, LocalExports, MergedExports, ModuleById, SideEffect, Specifier, SpecifierId,
@@ -27,9 +27,15 @@ pub struct Module {
     pub declared_ids: HashSet<Id>,
     pub included: bool,
     pub used_ids: HashSet<Id>,
+    pub suggested_names: HashMap<JsWord, JsWord>,
+    pub is_entry: bool,
 }
 
 impl Module {
+    pub fn suggest_name(&mut self, name: JsWord, suggested: JsWord) {
+        self.suggested_names.insert(name, suggested);
+    }
+
     pub fn depended_modules<'a>(&self, module_graph: &'a ModuleById) -> Vec<&'a Module> {
         self.dependencies
             .iter()
@@ -74,6 +80,43 @@ impl Module {
             })
             .collect()
     }
+
+    pub fn gen_export(&self) -> ast::ModuleItem {
+        use ast::{
+            ExportNamedSpecifier, ExportSpecifier, Ident, ModuleDecl, ModuleExportName, NamedExport,
+        };
+        use swc_common::{Span, DUMMY_SP};
+        let mut exports = self.merged_exports.iter().collect::<Vec<_>>();
+        exports.sort_by(|a, b| a.0.cmp(b.0));
+
+        ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(NamedExport {
+            span: Default::default(),
+            specifiers: exports
+                .into_iter()
+                .map(|(name, id)| {
+                    ExportSpecifier::Named(ExportNamedSpecifier {
+                        span: Default::default(),
+                        orig: ModuleExportName::Ident(ast::Ident {
+                            sym: id.0.clone(),
+                            span: Span {
+                                ctxt: id.1,
+                                ..DUMMY_SP
+                            },
+                            optional: false,
+                        }),
+                        exported: Some(ModuleExportName::Ident(Ident {
+                            sym: name.clone(),
+                            ..Ident::dummy()
+                        })),
+                        is_type_only: false,
+                    })
+                })
+                .collect::<Vec<_>>(),
+            src: None,
+            type_only: false,
+            asserts: None,
+        }))
+    }
 }
 
 impl Debug for Module {
@@ -93,6 +136,7 @@ impl Debug for Module {
             .field("included", &self.included)
             .field("used_ids", &self.used_ids)
             .field("unused_ids", &self.unused_ids())
+            .field("declared_ids", &self.declared_ids)
             .finish()
     }
 }

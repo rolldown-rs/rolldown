@@ -233,6 +233,7 @@ impl Graph {
                 },
                 tx.clone(),
                 self.plugin_driver.clone(),
+                true,
             );
 
             tokio::task::spawn(async move { task.run().await });
