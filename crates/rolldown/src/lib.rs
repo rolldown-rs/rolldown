@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rolldown_core::{Bundle, Graph, NormalizedInputOptions, OutputChunk};
+use rolldown_core::{Bundle, Graph, NormalizedInputOptions, NormalizedOutputOptions, OutputChunk};
 
 pub struct Rolldown {
     graph: Graph,
@@ -14,18 +14,46 @@ impl Rolldown {
         Ok(())
     }
 
-    pub async fn write(&mut self) -> anyhow::Result<()> {
+    pub async fn write(
+        &mut self,
+        output_options: NormalizedOutputOptions,
+    ) -> anyhow::Result<RolldownOutput> {
         self.graph.build().await?;
-        Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).old_should_not_be_used_generate()?;
-
+        // Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).old_should_not_be_used_generate()?;
+        let output_chunks = Bundle::new(
+            self.graph.options.clone(),
+            Default::default(),
+            &mut self.graph,
+        )
+        .generate()?;
+        output_chunks.iter().for_each(|chunk| {
+            std::fs::write(
+                format!(
+                    "{}/dist/{}",
+                    self.graph.options.root.as_str(),
+                    chunk.filename
+                ),
+                &chunk.code,
+            )
+            .unwrap();
+        });
         tracing::trace!("graph {:#?}", self.graph);
-        Ok(())
+        Ok(RolldownOutput {
+          output: output_chunks,
+      })
     }
 
-    pub async fn generate(&mut self) -> anyhow::Result<RolldownOutput> {
+    pub async fn generate(
+        &mut self,
+        output_options: NormalizedOutputOptions,
+    ) -> anyhow::Result<RolldownOutput> {
         self.graph.build().await?;
-        let output_chunks =
-            Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).generate()?;
+        let output_chunks = Bundle::new(
+            self.graph.options.clone(),
+            Default::default(),
+            &mut self.graph,
+        )
+        .generate()?;
 
         tracing::trace!("graph {:#?}", self.graph);
         Ok(RolldownOutput {
@@ -40,11 +68,11 @@ pub fn rolldown(options: NormalizedInputOptions) -> Rolldown {
 }
 
 pub struct RolldownOutput {
-   pub output: Vec<OutputChunk>,
+    pub output: Vec<OutputChunk>,
 }
 
 impl RolldownOutput {
-  fn chunk_by_id(&self, id: &str) -> Option<&OutputChunk> {
-    self.output.iter().find(|chunk| chunk.filename == id)
-  }
+    fn chunk_by_id(&self, id: &str) -> Option<&OutputChunk> {
+        self.output.iter().find(|chunk| chunk.filename == id)
+    }
 }

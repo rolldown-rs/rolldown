@@ -9,9 +9,9 @@ use sugar_path::PathSugar;
 async fn main() {
     // let guard = log::enable_tracing_by_env_with_chrome_layer();
     enable_tracing_by_env();
-    let mut compiler = rolldown(NormalizedInputOptions {
+    let mut rolldown_build = rolldown(NormalizedInputOptions {
         input: HashMap::from([("main".to_string(), "./index.js".to_string().into())]),
-        root: Path::new("./crates/rolldown/fixtures/basic-import")
+        root: Path::new("./crates/rolldown/fixtures/basic-naming-de-conflict")
           .resolve()
           .to_string_lossy()
           .to_string(),
@@ -26,7 +26,7 @@ async fn main() {
     //     ..Default::default()
     // });
 
-    compiler.write().await.unwrap();
+    rolldown_build.write(Default::default()).await.unwrap();
 
     // if let Some(g) = guard {
     //   g.flush()

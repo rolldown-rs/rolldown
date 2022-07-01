@@ -26,8 +26,12 @@ pub struct Scanner {
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
+
+    // Imported bindding is not included.
     pub declared_ids: HashSet<Id>,
     pub top_level_mark: swc_common::Mark,
+
+    pub is_in_decl: bool,
 }
 
 impl Scanner {
@@ -170,6 +174,12 @@ impl VisitMut for Scanner {
         node.visit_mut_children_with(self);
     }
 
+    fn visit_mut_decl(&mut self, node: &mut ast::Decl) {
+        self.is_in_decl = true;
+        node.visit_mut_children_with(self);
+        self.is_in_decl = false;
+    }
+
     fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {
         self.add_import(node);
         self.add_export(node).unwrap();
@@ -181,13 +191,15 @@ impl VisitMut for Scanner {
     }
 
     fn visit_mut_ident(&mut self, node: &mut Ident) {
-        let ident = Ident {
-            sym: node.sym.clone(),
-            span: DUMMY_SP.apply_mark(self.top_level_mark),
-            optional: false,
-        };
-        if node.to_id() == ident.to_id() {
-            self.declared_ids.insert(node.to_id());
+        if self.is_in_decl {
+            let ident = Ident {
+                sym: node.sym.clone(),
+                span: DUMMY_SP.apply_mark(self.top_level_mark),
+                optional: false,
+            };
+            if node.to_id() == ident.to_id() {
+                self.declared_ids.insert(node.to_id());
+            }
         }
         node.visit_mut_children_with(self);
     }

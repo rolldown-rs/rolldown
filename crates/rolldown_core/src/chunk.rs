@@ -49,7 +49,7 @@ impl Chunk {
                     {
                         let original_name = id.0.clone();
                         let mut name = id.0.clone();
-                        let mut count = 0;
+                        let mut count = 1;
                         while used_names.contains(&name) {
                             name = format!("{}${}", &original_name, &count).into();
                             count += 1;

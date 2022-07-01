@@ -54,9 +54,8 @@ pub async fn test_fixture(fixture_dir_name: &str) -> Rolldown {
         })
         .collect::<HashMap<_, _>>();
 
-    let stats = compiler.generate().await.unwrap();
-    compiler.write().await.unwrap();
-    println!("stats.output {:?}", stats.output);
+    let stats = compiler.write(Default::default()).await.unwrap();
+    // println!("stats.output {:?}", stats.output);
     stats.output.iter().for_each(|asset| {
         expected
             .keys()

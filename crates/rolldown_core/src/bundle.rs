@@ -14,17 +14,6 @@ impl<'a> Bundle<'a> {
         Self { input_options, options, graph }
     }
 
-    pub fn old_should_not_be_used_generate(&self) -> anyhow::Result<()> {
-        let chunks = self.generate_chunks()?;
-        std::fs::create_dir_all(format!("{}/dist", self.input_options.root.as_str())).unwrap();
-        chunks.iter().for_each(|chunk| {
-            let code = chunk.render(&self.graph, &self.input_options);
-            std::fs::write(format!("{}/dist/{}.js", self.input_options.root.as_str(), chunk.id), code).unwrap();
-            
-        });
-        Ok(())
-    }
-
     pub fn generate(&self) -> anyhow::Result<Vec<OutputChunk>> {
         let chunks = self.generate_chunks()?;
         Ok(chunks
