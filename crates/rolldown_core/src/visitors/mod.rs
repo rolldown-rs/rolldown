@@ -72,19 +72,19 @@ impl Scanner {
                         let alias = s.local.to_id();
                         imports.insert(SpecifierId {
                             alias,
-                            orginal: original,
+                            original,
                         });
                     }
                     ast::ImportSpecifier::Default(s) => {
                         imports.insert(SpecifierId {
                             alias: s.local.to_id(),
-                            orginal: "default".into(),
+                            original: "default".into(),
                         });
                     }
                     ast::ImportSpecifier::Namespace(s) => {
                         imports.insert(SpecifierId {
                             alias: s.local.to_id(),
-                            orginal: "*".into(),
+                            original: "*".into(),
                         });
                     }
                 });
@@ -215,7 +215,7 @@ pub struct Specifier {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpecifierId {
     pub alias: Id,
-    pub orginal: JsWord,
+    pub original: JsWord,
 }
 
 fn ident_of_module_export_name(name: &ast::ModuleExportName) -> ast::Ident {

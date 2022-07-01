@@ -146,8 +146,10 @@ impl Graph {
                         .map(|spec| {
                             assert_ne!(&spec.orginal, "*");
                             assert_ne!(&spec.orginal, "default");
-                            let original_id = re_exported_module.merged_exports.get(&spec.orginal).unwrap();
-                            
+                            let original_id = re_exported_module
+                                .merged_exports
+                                .get(&spec.orginal)
+                                .unwrap();
                             original_id.clone()
                         })
                         .collect::<Vec<_>>()
@@ -167,28 +169,43 @@ impl Graph {
     fn link_imports(&mut self, order_modules: &[JsWord]) {
         order_modules.into_iter().for_each(|module_id| {
             let cur_module = self.module_by_id.get(&module_id).unwrap();
-            cur_module
-                .imports
+            let imports = cur_module
+            .imports
+            .clone();
+            std::mem::drop(cur_module);
+            imports
                 .iter()
-                .map(|(unresolved_module_id, names)| {
+                .map(|(unresolved_module_id, imported_specifier)| {
+                  let imported_module_id = cur_module
+                  .resolved_module_ids
+                  .get(unresolved_module_id)
+                  .unwrap()
+                  .id.clone();
                     let imported_module = self
                         .module_by_id
-                        .get(
-                            &cur_module
-                                .resolved_module_ids
-                                .get(unresolved_module_id)
-                                .unwrap()
-                                .id,
+                        .get_mut(
+                          &imported_module_id,
                         )
                         .unwrap();
-                    names
+                    imported_specifier
                         .iter()
-                        .map(|name| {
-                            assert_ne!(&name.orginal, "*");
-                            assert_ne!(&name.orginal, "default");
-                            let export_id =
-                                imported_module.merged_exports.get(&name.orginal).unwrap();
-                            export_id.clone()
+                        .map(|spec| {
+                            assert_ne!(&spec.original, "*");
+                            assert_ne!(&spec.original, "default");
+                            let original_id =
+                                imported_module.merged_exports.get(&spec.original).unwrap();
+                            self.uf.add_key(spec.alias.clone());
+                            self.uf.add_key(original_id.clone());
+                            self.uf.union(&spec.alias, &original_id);
+                            if &spec.original == "default" || &spec.original == "*" {
+                                // There is only one case where `specifier.used` is not a valid varible name.
+                                // Special case ` export { default } from ...`
+                                if &spec.alias.0 != "default" {
+                                    imported_module
+                                        .suggest_name(spec.original.clone(), spec.alias.0.clone());
+                                }
+                            }
+                            original_id.clone()
                         })
                         .collect::<Vec<_>>()
                 })
@@ -263,7 +280,7 @@ impl Graph {
             imports.into_iter().for_each(|(module_id, sids)| {
                 let imported_module = self.module_by_id.get_mut(&module_id.id).unwrap();
                 sids.into_iter()
-                    .for_each(|name| imported_module.mark_used_id(&name.orginal, &name.alias));
+                    .for_each(|name| imported_module.mark_used_id(&name.original, &name.alias));
             });
         });
     }
