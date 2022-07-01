@@ -172,7 +172,6 @@ impl Graph {
             let imports = cur_module
             .imports
             .clone();
-            std::mem::drop(cur_module);
             imports
                 .iter()
                 .map(|(unresolved_module_id, imported_specifier)| {
