@@ -5,7 +5,7 @@ use std::sync::{
 
 use crate::{
     get_swc_compiler, ufriend::UFriend, JobContext, LoadArgs, Module, NormalizedInputOptions,
-    Plugin, PluginDriver, ResolveArgs, ResolvingModuleJob, SideEffect, ResolvedId,
+    Plugin, PluginDriver, ResolveArgs, ResolvedId, ResolvingModuleJob, SideEffect,
 };
 use ast::Id;
 use dashmap::DashSet;
@@ -40,7 +40,7 @@ impl Graph {
         self.module_by_id.insert(module.id.clone(), module);
     }
 
-    pub fn sort_modules(&mut self) {
+    fn sort_modules(&mut self) {
         let mut stack = self
             .resolved_entries
             .iter()
@@ -113,7 +113,7 @@ impl Graph {
         );
     }
 
-    pub fn link(&mut self) {
+    fn link(&mut self) {
         let order_modules = {
             let mut modules = self
                 .module_by_id
@@ -168,7 +168,7 @@ impl Graph {
         });
     }
 
-    pub fn include_statement(&mut self) {
+    fn include_statement(&mut self) {
         let order_modules = {
             let mut modules = self
                 .module_by_id
@@ -209,7 +209,7 @@ impl Graph {
         });
     }
 
-    pub async fn build(&mut self) -> anyhow::Result<()> {
+    async fn build_graph(&mut self) -> anyhow::Result<()> {
         let active_task_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Msg>();
@@ -249,7 +249,7 @@ impl Graph {
                     Msg::TaskCanceled => {
                         active_task_count.fetch_sub(1, Ordering::SeqCst);
                     }
-                    Msg::DependencyReference(importer, spec,resolved_uri) => {
+                    Msg::DependencyReference(importer, spec, resolved_uri) => {
                         resolved_ids_for_all_module
                             .entry(importer)
                             .or_default()
@@ -284,6 +284,11 @@ impl Graph {
                 .unwrap_or_default();
         });
 
+        Ok(())
+    }
+
+    pub async fn build(&mut self) -> anyhow::Result<()> {
+        self.build_graph().await?;
         self.sort_modules();
         self.link();
         self.include_statement();

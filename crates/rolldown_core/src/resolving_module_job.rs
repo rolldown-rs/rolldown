@@ -1,5 +1,4 @@
 use std::{
-    path::Path,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -7,7 +6,6 @@ use std::{
 };
 
 use dashmap::DashSet;
-use sugar_path::PathSugar;
 use swc_atoms::JsWord;
 use swc_common::Mark;
 use swc_ecma_transforms::resolver;
@@ -15,8 +13,8 @@ use swc_ecma_visit::VisitMutWith;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
 use crate::{
-    get_swc_compiler, load, parse_file, resolve, Scanner, LoadArgs, Module, Msg,
-    PluginDriver, ResolveArgs,
+    get_swc_compiler, load, parse_file, resolve, LoadArgs, Module, Msg, PluginDriver, ResolveArgs,
+    Scanner,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
@@ -95,12 +93,11 @@ impl ResolvingModuleJob {
 
         tracing::trace!("resolved id {:?}", id);
 
-        self
-            .send(Msg::DependencyReference(
-                self.dependency.importer.clone().into(),
-                self.dependency.specifier.clone(),
-                id.clone()
-            ));
+        self.send(Msg::DependencyReference(
+            self.dependency.importer.clone().into(),
+            self.dependency.specifier.clone(),
+            id.clone(),
+        ));
 
         if self.context.visited_module_identity.contains(&id.id) {
             return Ok(None);
@@ -131,15 +128,13 @@ impl ResolvingModuleJob {
         });
 
         let mut scanner = Scanner {
-          top_level_mark,
-          ..Default::default()
+            top_level_mark,
+            ..Default::default()
         };
 
         get_swc_compiler().run(|| {
-          ast.visit_mut_with(&mut scanner);
+            ast.visit_mut_with(&mut scanner);
         });
-
-
 
         let module = Module {
             exec_order: usize::MAX,
@@ -159,10 +154,6 @@ impl ResolvingModuleJob {
             declared_ids: scanner.declared_ids,
             suggested_names: Default::default(),
             is_user_defined_entry: self.is_entry,
-            // source: source_code,
-            // dependecies: scanner.dependencies,
-            // dyn_dependecies: scanner.dyn_dependencies,
-            // imports: Default::default(),
         };
 
         tracing::trace!("parsed module {:#?}", module);
@@ -170,7 +161,7 @@ impl ResolvingModuleJob {
         Ok(Some(module))
     }
 
-    fn fork(&self, dep: Dependency, is_entry: bool,) {
+    fn fork(&self, dep: Dependency, is_entry: bool) {
         let task = ResolvingModuleJob::new(
             JobContext {
                 module_name: None,
@@ -193,30 +184,22 @@ impl ResolvingModuleJob {
             .body
             .iter()
             .filter_map(|stmt| stmt.as_module_decl())
-            .filter_map(|module_decl| {
-                match module_decl {
-                    ast::ModuleDecl::Import(import) => Some(Dependency {
+            .filter_map(|module_decl| match module_decl {
+                ast::ModuleDecl::Import(import) => Some(Dependency {
+                    importer: Some(id.clone()),
+                    specifier: import.src.value.clone(),
+                }),
+                ast::ModuleDecl::ExportNamed(decl) => {
+                    decl.src.as_ref().map(|exported| Dependency {
                         importer: Some(id.clone()),
-                        specifier: import.src.value.clone(),
-                    }),
-                    ast::ModuleDecl::ExportNamed(decl) => {
-                        decl.src.as_ref().map(|exported| Dependency {
-                            importer: Some(id.clone()),
-                            specifier: exported.value.clone(),
-                        })
-                    }
-                    // ast::ModuleDecl::ExportDecl(_) => todo!(),
-                    // ast::ModuleDecl::ExportDefaultDecl(_) => todo!(),
-                    // ast::ModuleDecl::ExportDefaultExpr(_) => todo!(),
-                    ast::ModuleDecl::ExportAll(decl) => Some(Dependency {
-                        importer: Some(id.clone()),
-                        specifier: decl.src.value.clone(),
-                    }),
-                    // ast::ModuleDecl::TsImportEquals(_) => todo!(),
-                    // ast::ModuleDecl::TsExportAssignment(_) => todo!(),
-                    // ast::ModuleDecl::TsNamespaceExport(_) => todo!(),
-                    _ => None,
+                        specifier: exported.value.clone(),
+                    })
                 }
+                ast::ModuleDecl::ExportAll(decl) => Some(Dependency {
+                    importer: Some(id.clone()),
+                    specifier: decl.src.value.clone(),
+                }),
+                _ => None,
             })
             .for_each(|depenency| {
                 self.fork(depenency, false);

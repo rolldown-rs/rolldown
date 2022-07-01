@@ -7,7 +7,8 @@ use swc_atoms::JsWord;
 use swc_common::{util::take::Take, Mark, Span};
 
 use crate::{
-    ufriend::UFriend, LocalExports, MergedExports, ModuleById, SideEffect, Specifier, SpecifierId, ResolvedId,
+    ufriend::UFriend, LocalExports, MergedExports, ModuleById, ResolvedId, SideEffect, Specifier,
+    SpecifierId,
 };
 
 pub struct Module {
@@ -79,6 +80,11 @@ impl Module {
                 }
             })
             .collect()
+    }
+
+    pub fn generate_exports(&mut self) {
+        let exports = self.gen_export();
+        self.ast.as_mut_module().map(|ast| ast.body.push(exports));
     }
 
     pub fn gen_export(&self) -> ast::ModuleItem {

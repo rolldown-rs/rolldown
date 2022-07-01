@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 use std::sync::Mutex;
+use swc_common::Mark;
 
 use crate::{get_swc_compiler, ClearMark, ExportRemover, Graph, NormalizedInputOptions, Renamer};
 use crate::{shake, ufriend::UFriend, Module, ModuleById};
@@ -32,10 +33,26 @@ impl Chunk {
         }
     }
 
-    pub fn de_conflict(&self, modules: &ModuleById, uf: &Mutex<UFriend<Id>>) {
+    pub fn prepare(&self, ctx: &mut PrepareContext) {
+        self.generate_exports(ctx);
+        self.de_conflict(ctx);
+    }
+
+    fn generate_exports(&self, ctx: &mut PrepareContext) {
+        let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
+        if !entry_module.merged_exports.is_empty() {
+            entry_module.generate_exports();
+        }
+    }
+
+    pub fn de_conflict(&self, ctx: &mut PrepareContext) {
+        // modules: &ModuleById, uf: &Mutex<UFriend<Id>>
+        let modules = &mut ctx.modules;
+        let uf = ctx.uf;
+
         let mut used_names = HashSet::new();
         let mut id_to_name = HashMap::new();
-        let uf = &mut *uf.lock().unwrap();
+        // let uf = &mut *uf.lock().unwrap();
 
         // De-conflict from the entry module to keep namings as simple as possible
         self.ordered_modules(modules)
@@ -43,6 +60,7 @@ impl Chunk {
             .rev()
             .for_each(|module| {
                 module.declared_ids.iter().for_each(|id| {
+                    let uf = &mut uf.lock().unwrap();
                     uf.add_key(id.clone());
                     let root_id = uf.asset_find_root(id);
                     if let hashbrown::hash_map::Entry::Vacant(e) = id_to_name.entry(root_id.clone())
@@ -61,30 +79,19 @@ impl Chunk {
                 });
             });
 
-        modules.iter().enumerate().for_each(|(index, (_, module))| {
-            let ast = &module.ast as *const _ as *mut ast::Program;
+        modules.par_values_mut().for_each(|module| {
+            let ast = &mut module.ast;
             let mut renamer = Renamer {
-                uf,
+                uf: ctx.uf,
                 rename_map: &id_to_name,
             };
-            unsafe {
-                (&mut *ast)
-                    .as_mut_module()
-                    .unwrap()
-                    .body
-                    .retain(|module_item| {
-                        !matches!(module_item, ModuleItem::ModuleDecl(ModuleDecl::Import(_)))
-                    });
-                // TODO: we should not use `is_user_defined_entry `
-                if module.is_user_defined_entry && !module.merged_exports.is_empty() {
-                    (&mut *ast)
-                        .as_mut_module()
-                        .unwrap()
-                        .body
-                        .push(module.gen_export());
-                }
-                (&mut *ast).visit_mut_with(&mut renamer);
-            }
+            ast.as_mut_module().unwrap().body.retain(|module_item| {
+                !matches!(module_item, ModuleItem::ModuleDecl(ModuleDecl::Import(_)))
+            });
+            ast.visit_mut_with(&mut renamer);
+
+            *ast = std::mem::replace(ast, ast::Program::Module(Take::dummy()))
+                .fold_with(&mut ExportRemover);
         });
 
         tracing::debug!("id_to_name {:#?}", id_to_name);
@@ -102,21 +109,19 @@ impl Chunk {
     }
 
     pub fn render(&self, graph: &Graph, input_options: &NormalizedInputOptions) -> String {
-        self.de_conflict(&graph.module_by_id, &graph.uf);
         let compiler = get_swc_compiler();
         self.ordered_modules(&graph.module_by_id)
             .iter()
             .map(|module| (module, module.ast.as_module().clone().unwrap()))
             .map(|(module, ast)| {
-                let ast = if input_options.treeshake {
-                    shake(*module, ast.clone(), graph.unresolved_mark)
-                } else {
-                    ast.clone()
-                };
-                ast
+                //     let ast = if input_options.treeshake {
+                //         shake(*module, ast.clone(), graph.unresolved_mark)
+                //     } else {
+                //         ast.clone()
+                //     };
+                ast.clone()
             })
-            .map(|ast| ast.fold_with(&mut ExportRemover))
-            .map(|module| {
+            .map(|ast| {
                 let output =
                     swc::try_with_handler(compiler.cm.clone(), Default::default(), |handler| {
                         let fm = compiler.cm.new_source_file(
@@ -129,7 +134,7 @@ impl Chunk {
                         compiler.process_js_with_custom_pass(
                             fm,
                             // TODO: It should have a better way rather than clone.
-                            Some(ast::Program::Module(module)),
+                            Some(ast::Program::Module(ast)),
                             handler,
                             &swc_config::Options {
                                 config: swc_config::Config {
@@ -187,4 +192,10 @@ impl Chunk {
 pub struct OutputChunk {
     pub code: String,
     pub filename: String,
+}
+
+pub struct PrepareContext<'a> {
+    pub modules: ModuleById,
+    pub uf: &'a Mutex<UFriend<Id>>,
+    pub unresolved_mark: Mark,
 }
