@@ -1,5 +1,5 @@
 use ena::unify::{InPlaceUnificationTable, UnifyKey};
-use std::{collections::HashMap, hash::Hash, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct EnaKey(u32);
@@ -22,7 +22,7 @@ impl UnifyKey for EnaKey {
 
 #[derive(Debug)]
 pub struct UFriend<Key: Eq + Hash + Clone + Debug> {
-    ena: InPlaceUnificationTable<EnaKey>,
+    ena: Mutex<InPlaceUnificationTable<EnaKey>>,
     ena_key_to_index: HashMap<EnaKey, Key>,
     index_to_ena_key_map: HashMap<Key, EnaKey>,
     // stored: Vec<Key>,
@@ -39,37 +39,46 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
     }
 
     pub fn add_key(&mut self, key: Key) {
-      if !self.index_to_ena_key_map.contains_key(&key) {
-        // self.stored.push(key);
-        // let index = self.stored.len() - 1;
-        let ena_key = self.ena.new_key(());
-        // self.ena_key_to_key_map.insert(ena_key, key);
-        self.index_to_ena_key_map.insert(key.clone(), ena_key);
-        self.ena_key_to_index.insert(ena_key, key);
-      }
+        if !self.index_to_ena_key_map.contains_key(&key) {
+            // self.stored.push(key);
+            // let index = self.stored.len() - 1;
+            let ena_key = self.ena.get_mut().unwrap().new_key(());
+            // self.ena_key_to_key_map.insert(ena_key, key);
+            self.index_to_ena_key_map.insert(key.clone(), ena_key);
+            self.ena_key_to_index.insert(ena_key, key);
+        }
     }
 
-    pub fn union(&mut self, key1: &Key, key2: &Key) {
+    pub fn union(&self, key1: &Key, key2: &Key) {
+        let ena_key1 = self
+            .index_to_ena_key_map
+            .get(key1)
+            .unwrap_or_else(|| panic!("Key {:?} not found", key1));
+        let ena_key2 = self
+            .index_to_ena_key_map
+            .get(key2)
+            .unwrap_or_else(|| panic!("Key {:?} not found", key2));
+        self.ena.lock().unwrap().union(*ena_key1, *ena_key2);
+    }
+
+    pub fn unioned(&self, key1: &Key, key2: &Key) -> bool {
         let ena_key1 = self.index_to_ena_key_map.get(key1).unwrap();
         let ena_key2 = self.index_to_ena_key_map.get(key2).unwrap();
-        self.ena.union(*ena_key1, *ena_key2);
+        self.ena.lock().unwrap().unioned(*ena_key1, *ena_key2)
     }
 
-    pub fn unioned(&mut self, key1: &Key, key2: &Key) -> bool {
-        let ena_key1 = self.index_to_ena_key_map.get(key1).unwrap();
-        let ena_key2 = self.index_to_ena_key_map.get(key2).unwrap();
-        self.ena.unioned(*ena_key1, *ena_key2)
-    }
-
-    pub fn asset_find_root(&mut self, key: &Key) -> &Key {
-        let ena_key = self.index_to_ena_key_map.get(key).unwrap_or_else(|| panic!("key: {:?}", key));
-        let ena_root = self.ena.find(*ena_key);
+    pub fn asset_find_root(&self, key: &Key) -> &Key {
+        let ena_key = self
+            .index_to_ena_key_map
+            .get(key)
+            .unwrap_or_else(|| panic!("key: {:?}", key));
+        let ena_root = self.ena.lock().unwrap().find(*ena_key);
         &self.ena_key_to_index[&ena_root]
     }
 
-    pub fn find_root(&mut self, key: &Key) -> Option<&Key> {
+    pub fn find_root(&self, key: &Key) -> Option<&Key> {
         let ena_key = self.index_to_ena_key_map.get(key)?;
-        let ena_root = self.ena.find(*ena_key);
+        let ena_root = self.ena.lock().unwrap().find(*ena_key);
         self.ena_key_to_index.get(&ena_root)
     }
 }

@@ -4,11 +4,13 @@ use ast::{Id, ModuleItem};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common::{util::take::Take, Mark, Span};
+use swc_common::{util::take::Take, Mark, DUMMY_SP};
+use swc_ecma_codegen::text_writer::JsWriter;
+use swc_ecma_utils::quote_ident;
 
 use crate::{
-    ufriend::UFriend, LocalExports, MergedExports, ModuleById, ResolvedId, SideEffect, Specifier,
-    SpecifierId,
+    get_swc_compiler, ufriend::UFriend, LocalExports, MergedExports, ModuleById, ResolvedId,
+    SideEffect, Specifier, SpecifierId,
 };
 
 pub struct Module {
@@ -27,7 +29,7 @@ pub struct Module {
     pub resolved_module_ids: HashMap<JsWord, ResolvedId>,
     pub declared_ids: HashSet<Id>,
     pub included: bool,
-    pub used_ids: HashSet<Id>,
+    pub used_exported_id: HashSet<Id>,
     pub suggested_names: HashMap<JsWord, JsWord>,
     pub is_user_defined_entry: bool,
 }
@@ -53,27 +55,98 @@ impl Module {
             .collect()
     }
 
-    pub fn mark_used_id(&mut self, name: &JsWord, id: &Id, uf: &mut UFriend<Id>) {
-        if name == "*" {
-            // TODO: generate namespace export
-        } else {
-            uf.add_key(id.clone());
-            let local_id = self
-                .merged_exports
-                .get(name)
-                .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", name, self.id))
-                .clone();
-            uf.add_key(local_id.clone());
-            uf.union(&id, &local_id);
-            self.used_ids.insert(local_id);
-        }
+    fn gen_namespace_export(&self, name_id: Id) -> ast::ModuleItem {
+        // use ast::{PropOrSpread, PropName, Prop, Expr, Lit, Null, Stmt, KeyValueProp, Decl};
+        use ast::*;
+        let mut key_values = self
+            .merged_exports
+            .iter()
+            .filter(|(name, _)| {
+              *name != "*"
+            })
+            .collect::<Vec<_>>();
+        key_values.sort_by(|a, b| a.0.cmp(b.0));
+        let mut props = vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
+            key: PropName::Str("__proto__".into()),
+            value: Box::new(Expr::Lit(Lit::Null(Null::dummy()))),
+        })))];
+        props.append(
+            &mut key_values
+                .into_iter()
+                .map(|(name, id)| {
+                    PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
+                        key: PropName::Str(name.to_string().into()),
+                        value: Box::new(Expr::Ident(id.clone().into())),
+                    })))
+                })
+                .collect(),
+        );
+        ModuleItem::Stmt(Stmt::Decl(Decl::Var(VarDecl {
+            span: DUMMY_SP,
+            kind: VarDeclKind::Const,
+            declare: false,
+            decls: vec![VarDeclarator {
+                span: DUMMY_SP,
+                definite: false,
+                name: Pat::Ident(BindingIdent {
+                    type_ann: None,
+                    id: name_id.into(),
+                }),
+                init: Some(Box::new(Expr::Call(CallExpr {
+                    callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
+                        obj: Box::new(Expr::Ident(Ident {
+                            sym: "Object".into(),
+                            ..Ident::dummy()
+                        })),
+                        prop: MemberProp::Ident(Ident {
+                            sym: "freeze".into(),
+                            ..Ident::dummy()
+                        }),
+                        ..MemberExpr::dummy()
+                    }))),
+                    args: vec![ExprOrSpread {
+                        expr: Box::new(Expr::Object(ObjectLit {
+                            span: DUMMY_SP,
+                            props,
+                        })),
+                        spread: None,
+                    }],
+                    ..CallExpr::dummy()
+                }))),
+            }],
+        })))
+    }
+
+    pub fn mark_used_id(&mut self, name: &JsWord, id: &Id) {
+        if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
+            let namespace_export = get_swc_compiler().run(|| {
+                self.merged_exports.insert(
+                    "*".into(),
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+                );
+                self.gen_namespace_export(
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+                )
+            });
+            self.ast
+                .as_mut_module()
+                .unwrap()
+                .body
+                .push(namespace_export)
+        };
+        let local_id = self
+            .merged_exports
+            .get(name)
+            .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", name, self.id))
+            .clone();
+        self.used_exported_id.insert(local_id.clone());
     }
 
     pub fn unused_ids(&self) -> HashSet<Id> {
         self.merged_exports
             .iter()
             .filter_map(|(name, id)| {
-                if self.used_ids.contains(id) {
+                if self.used_exported_id.contains(id) {
                     None
                 } else {
                     Some(id.clone())
@@ -83,8 +156,29 @@ impl Module {
     }
 
     pub fn generate_exports(&mut self) {
-        let exports = self.gen_export();
-        self.ast.as_mut_module().map(|ast| ast.body.push(exports));
+        if !self.merged_exports.is_empty() {
+            let exports = self.gen_export();
+            self.ast.as_mut_module().map(|ast| ast.body.push(exports));
+        }
+    }
+
+    pub fn render(&self) -> String {
+        let mut output = Vec::new();
+
+        let mut emitter = swc_ecma_codegen::Emitter {
+            cfg: Default::default(),
+            cm: get_swc_compiler().cm.clone(),
+            comments: None,
+            wr: Box::new(JsWriter::new(
+                get_swc_compiler().cm.clone(),
+                "\n",
+                &mut output,
+                None,
+            )),
+        };
+
+        emitter.emit_program(&self.ast).unwrap();
+        String::from_utf8(output).unwrap()
     }
 
     pub fn gen_export(&self) -> ast::ModuleItem {
@@ -140,7 +234,7 @@ impl Debug for Module {
             .field("resolved_module_ids", &self.resolved_module_ids)
             .field("ast", &"...")
             .field("included", &self.included)
-            .field("used_ids", &self.used_ids)
+            .field("used_ids", &self.used_exported_id)
             .field("unused_ids", &self.unused_ids())
             .field("declared_ids", &self.declared_ids)
             .finish()

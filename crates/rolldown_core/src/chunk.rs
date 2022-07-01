@@ -40,9 +40,7 @@ impl Chunk {
 
     fn generate_exports(&self, ctx: &mut PrepareContext) {
         let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
-        if !entry_module.merged_exports.is_empty() {
-            entry_module.generate_exports();
-        }
+        entry_module.generate_exports();
     }
 
     pub fn de_conflict(&self, ctx: &mut PrepareContext) {
@@ -60,8 +58,6 @@ impl Chunk {
             .rev()
             .for_each(|module| {
                 module.declared_ids.iter().for_each(|id| {
-                    let uf = &mut uf.lock().unwrap();
-                    uf.add_key(id.clone());
                     let root_id = uf.asset_find_root(id);
                     if let hashbrown::hash_map::Entry::Vacant(e) = id_to_name.entry(root_id.clone())
                     {
@@ -109,63 +105,9 @@ impl Chunk {
     }
 
     pub fn render(&self, graph: &Graph, input_options: &NormalizedInputOptions) -> String {
-        let compiler = get_swc_compiler();
         self.ordered_modules(&graph.module_by_id)
             .iter()
-            .map(|module| (module, module.ast.as_module().clone().unwrap()))
-            .map(|(module, ast)| {
-                //     let ast = if input_options.treeshake {
-                //         shake(*module, ast.clone(), graph.unresolved_mark)
-                //     } else {
-                //         ast.clone()
-                //     };
-                ast.clone()
-            })
-            .map(|ast| {
-                let output =
-                    swc::try_with_handler(compiler.cm.clone(), Default::default(), |handler| {
-                        let fm = compiler.cm.new_source_file(
-                            FileName::Custom(self.id.to_string()),
-                            self.id.to_string(),
-                        );
-
-                        let source_map = false;
-
-                        compiler.process_js_with_custom_pass(
-                            fm,
-                            // TODO: It should have a better way rather than clone.
-                            Some(ast::Program::Module(ast)),
-                            handler,
-                            &swc_config::Options {
-                                config: swc_config::Config {
-                                    jsc: swc_config::JscConfig {
-                                        target: Some(EsVersion::Es2022),
-                                        syntax: Default::default(),
-                                        transform: Some(swc_config::TransformConfig {
-                                            react: react::Options {
-                                                runtime: Some(react::Runtime::Automatic),
-                                                ..Default::default()
-                                            },
-                                            ..Default::default()
-                                        })
-                                        .into(),
-                                        ..Default::default()
-                                    },
-                                    inline_sources_content: true.into(),
-                                    // emit_source_map_columns: (!matches!(options.mode, BundleMode::Dev)).into(),
-                                    source_maps: Some(SourceMapsConfig::Bool(source_map)),
-                                    ..Default::default()
-                                },
-                                // top_level_mark: Some(bundle_ctx.top_level_mark),
-                                ..Default::default()
-                            },
-                            |_, _| noop(),
-                            |_, _| noop(),
-                        )
-                    })
-                    .unwrap();
-                output.code
-            })
+            .map(|module| module.render())
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -196,6 +138,6 @@ pub struct OutputChunk {
 
 pub struct PrepareContext<'a> {
     pub modules: ModuleById,
-    pub uf: &'a Mutex<UFriend<Id>>,
+    pub uf: &'a UFriend<Id>,
     pub unresolved_mark: Mark,
 }

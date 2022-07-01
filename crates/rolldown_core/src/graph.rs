@@ -21,7 +21,7 @@ pub struct Graph {
     plugin_driver: Arc<RwLock<PluginDriver>>,
     pub resolved_entries: Vec<JsWord>,
     pub unresolved_mark: Mark,
-    pub uf: Mutex<UFriend<Id>>,
+    pub uf: UFriend<Id>,
 }
 
 impl Graph {
@@ -32,7 +32,7 @@ impl Graph {
             plugin_driver: Arc::new(RwLock::new(PluginDriver::new(options, plugins))),
             resolved_entries: Default::default(),
             unresolved_mark: get_swc_compiler().run(|| Mark::new()),
-            uf: Mutex::new(UFriend::new()),
+            uf: UFriend::new(),
         }
     }
 
@@ -113,17 +113,7 @@ impl Graph {
         );
     }
 
-    fn link(&mut self) {
-        let order_modules = {
-            let mut modules = self
-                .module_by_id
-                .values()
-                .map(|module| module.id.clone())
-                .collect::<Vec<_>>();
-            modules.sort_by_key(|id| self.module_by_id[id].exec_order);
-            modules
-        };
-
+    fn link_exports(&mut self, order_modules: &[JsWord]) {
         order_modules.iter().for_each(|module_id| {
             let module = self.module_by_id.get(module_id).unwrap();
             if matches!(module.side_effect, Some(SideEffect::Pending)) {
@@ -135,23 +125,69 @@ impl Graph {
                 self.module_by_id.get_mut(&module_id).unwrap().side_effect = side_effect;
             }
         });
-
         order_modules.into_iter().for_each(|module_id| {
-            let module = self.module_by_id.get(&module_id).unwrap();
-            module
+            let cur_module = self.module_by_id.get(&module_id).unwrap();
+            cur_module
                 .re_exports
                 .iter()
-                .map(|(unresolved_id, names)| {
-                    let module = self
+                .map(|(unresolved_module_id, re_exported_specifier)| {
+                    let re_exported_module = self
                         .module_by_id
-                        .get(&module.resolved_module_ids.get(unresolved_id).unwrap().id)
+                        .get(
+                            &cur_module
+                                .resolved_module_ids
+                                .get(unresolved_module_id)
+                                .unwrap()
+                                .id,
+                        )
+                        .unwrap();
+                    re_exported_specifier
+                        .iter()
+                        .map(|spec| {
+                            assert_ne!(&spec.orginal, "*");
+                            assert_ne!(&spec.orginal, "default");
+                            let original_id = re_exported_module.merged_exports.get(&spec.orginal).unwrap();
+                            
+                            original_id.clone()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .for_each(|ids| {
+                    let module = self.module_by_id.get_mut(&module_id).unwrap();
+                    ids.into_iter().for_each(|id| {
+                        assert!(module.merged_exports.contains_key(&id.0));
+                        module.merged_exports.insert(id.0.clone(), id);
+                    });
+                });
+        });
+    }
+
+    fn link_imports(&mut self, order_modules: &[JsWord]) {
+        order_modules.into_iter().for_each(|module_id| {
+            let cur_module = self.module_by_id.get(&module_id).unwrap();
+            cur_module
+                .imports
+                .iter()
+                .map(|(unresolved_module_id, names)| {
+                    let imported_module = self
+                        .module_by_id
+                        .get(
+                            &cur_module
+                                .resolved_module_ids
+                                .get(unresolved_module_id)
+                                .unwrap()
+                                .id,
+                        )
                         .unwrap();
                     names
                         .iter()
                         .map(|name| {
                             assert_ne!(&name.orginal, "*");
                             assert_ne!(&name.orginal, "default");
-                            let export_id = module.merged_exports.get(&name.orginal).unwrap();
+                            let export_id =
+                                imported_module.merged_exports.get(&name.orginal).unwrap();
                             export_id.clone()
                         })
                         .collect::<Vec<_>>()
@@ -166,6 +202,34 @@ impl Graph {
                     });
                 });
         });
+    }
+
+    fn link(&mut self) {
+        let order_modules = {
+            let mut modules = self
+                .module_by_id
+                .values()
+                .map(|module| module.id.clone())
+                .collect::<Vec<_>>();
+            modules.sort_by_key(|id| self.module_by_id[id].exec_order);
+            modules
+        };
+        self.module_by_id.values().for_each(|module| {
+            module
+                .declared_ids
+                .iter()
+                .for_each(|id| self.uf.add_key(id.clone()));
+
+            module
+                .imports
+                .values()
+                .flat_map(|specs| specs.iter())
+                .map(|spec| &spec.alias)
+                .for_each(|id| self.uf.add_key(id.clone()));
+        });
+
+        self.link_exports(&order_modules);
+        self.link_exports(&order_modules);
     }
 
     fn include_statement(&mut self) {
@@ -198,13 +262,8 @@ impl Graph {
             std::mem::drop(module);
             imports.into_iter().for_each(|(module_id, sids)| {
                 let imported_module = self.module_by_id.get_mut(&module_id.id).unwrap();
-                sids.into_iter().for_each(|name| {
-                    imported_module.mark_used_id(
-                        &name.orginal,
-                        &name.alias,
-                        &mut self.uf.lock().unwrap(),
-                    )
-                });
+                sids.into_iter()
+                    .for_each(|name| imported_module.mark_used_id(&name.orginal, &name.alias));
             });
         });
     }

@@ -103,6 +103,7 @@ pub fn syntax_by_ext(ext: &str) -> Syntax {
       decorators: true,
       fn_bind: true,
       allow_super_outside_method: true,
+      allow_return_outside_function: true,
     }),
   }
 }
@@ -118,6 +119,7 @@ pub fn syntax_by_source_type(filename: &str, ext: &str) -> Syntax {
       decorators: true,
       fn_bind: true,
       allow_super_outside_method: true,
+      allow_return_outside_function: true,
     }),
     "ts" | "tsx" => Syntax::Typescript(TsConfig {
       decorators: false,

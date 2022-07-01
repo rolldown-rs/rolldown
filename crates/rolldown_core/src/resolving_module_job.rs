@@ -1,14 +1,13 @@
-use std::{
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
 use dashmap::DashSet;
 use swc_atoms::JsWord;
-use swc_common::Mark;
+use swc_common::{Mark, DUMMY_SP};
 use swc_ecma_transforms::resolver;
+use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::VisitMutWith;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
@@ -134,6 +133,10 @@ impl ResolvingModuleJob {
 
         get_swc_compiler().run(|| {
             ast.visit_mut_with(&mut scanner);
+            // scanner.local_exports.insert(
+            //     "*".into(),
+            //     quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+            // );
         });
 
         let module = Module {
@@ -150,10 +153,11 @@ impl ResolvingModuleJob {
             dependencies: scanner.dependencies,
             dyn_dependencies: scanner.dyn_dependencies,
             included: true,
-            used_ids: Default::default(),
+            used_exported_id: Default::default(),
             declared_ids: scanner.declared_ids,
             suggested_names: Default::default(),
             is_user_defined_entry: self.is_entry,
+            // used_exports: Default::default(),
         };
 
         tracing::trace!("parsed module {:#?}", module);

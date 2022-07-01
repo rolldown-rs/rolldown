@@ -24,14 +24,15 @@ tracing-chrome = "0.6.0"
 rayon = "1.5.3"
 url = "2.2.2"
 linked_hash_set = "0.1.4"
-swc = "0.186.0"                        # Speedy web compiler
+swc = "0.196.1"
 # swc_ecma_ast = "0.79.0"                # Ecmascript ast.
-ast = {package = "swc_ecma_ast", version = "0.79.0"}                # Ecmascript ast.
-swc_ecma_visit = "0.65.0"          # Visitors for swc ecmascript nodes which works on stable rustc
-swc_common = "0.18.8"          # Common utilities for the swc project.
-swc_ecma_parser = "0.105.0"         # Feature-complete es2019 parser.
-swc_atoms = "0.2.11"    # Atoms for the swc project.
-swc_ecma_transforms = "0.158.0"                 # rust port of babel and closure compiler.
-swc_ecma_utils = "0.86.1"     # Utilities for swc ecmascript ast nodes
-swc_ecma_transforms_optimization = "0.131.0"    # rust port of babel and closure compiler.
+ast = {package = "swc_ecma_ast", version = "0.81.0"}                # Ecmascript ast.
+swc_ecma_visit = "0.67.0"
+swc_common = { version = "0.20.1", features = ["tty-emitter", "concurrent"] }          # Common utilities for the swc project.
+swc_ecma_parser = "0.108.0"
+swc_atoms = "0.2.13"
+swc_ecma_transforms = "0.167.0"
+swc_ecma_utils = "0.89.0"
+swc_ecma_transforms_optimization = "0.136.0"
+swc_ecma_codegen = { version = "0.112.0" }
 ena = "0.14.0"
