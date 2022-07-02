@@ -10,6 +10,8 @@ mod side_effect;
 pub use side_effect::*;
 mod shake;
 pub use shake::*;
+mod name_helpers;
+pub use name_helpers::*;
 
 pub fn uri_to_chunk_name(root: &str, uri: &str) -> String {
   let path = Path::new(uri);
@@ -62,7 +64,7 @@ pub fn get_swc_compiler() -> Arc<SwcCompiler> {
   SWC_COMPILER.clone()
 }
 
-#[instrument(skip_all)]
+
 pub fn parse_file(
   source_code: String,
   filename: &str,
@@ -197,3 +199,4 @@ pub fn collect_js_word_of_pat(pat: &Pat) -> Vec<JsWord> {
     .map(|id| id.sym.clone())
     .collect()
 }
+

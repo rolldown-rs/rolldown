@@ -1,8 +1,9 @@
+use dashmap::DashMap;
 use ena::unify::{InPlaceUnificationTable, UnifyKey};
 use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct EnaKey(u32);
+pub struct EnaKey(u32);
 
 impl UnifyKey for EnaKey {
     type Value = ();
@@ -23,8 +24,8 @@ impl UnifyKey for EnaKey {
 #[derive(Debug)]
 pub struct UFriend<Key: Eq + Hash + Clone + Debug> {
     ena: Mutex<InPlaceUnificationTable<EnaKey>>,
-    ena_key_to_index: HashMap<EnaKey, Key>,
-    index_to_ena_key_map: HashMap<Key, EnaKey>,
+    ena_key_to_index: DashMap<EnaKey, Key>,
+    index_to_ena_key_map: DashMap<Key, EnaKey>,
     // stored: Vec<Key>,
 }
 
@@ -38,11 +39,11 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
         }
     }
 
-    pub fn add_key(&mut self, key: Key) {
+    pub fn add_key(&self, key: Key) {
         if !self.index_to_ena_key_map.contains_key(&key) {
             // self.stored.push(key);
             // let index = self.stored.len() - 1;
-            let ena_key = self.ena.get_mut().unwrap().new_key(());
+            let ena_key = self.ena.lock().unwrap().new_key(());
             // self.ena_key_to_key_map.insert(ena_key, key);
             self.index_to_ena_key_map.insert(key.clone(), ena_key);
             self.ena_key_to_index.insert(ena_key, key);
@@ -67,16 +68,16 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
         self.ena.lock().unwrap().unioned(*ena_key1, *ena_key2)
     }
 
-    pub fn asset_find_root(&self, key: &Key) -> &Key {
-        let ena_key = self
-            .index_to_ena_key_map
-            .get(key)
-            .unwrap_or_else(|| panic!("key: {:?}", key));
-        let ena_root = self.ena.lock().unwrap().find(*ena_key);
-        &self.ena_key_to_index[&ena_root]
-    }
+    // pub fn asset_find_root(&self, key: &Key) -> &Key {
+    //     let ena_key = self
+    //         .index_to_ena_key_map
+    //         .get(key)
+    //         .unwrap_or_else(|| panic!("key: {:?}", key));
+    //     let ena_root = self.ena.lock().unwrap().find(*ena_key);
+    //     self.ena_key_to_index.get(&ena_root).as_deref().unwrap()
+    // }
 
-    pub fn find_root(&self, key: &Key) -> Option<&Key> {
+    pub fn find_root(&self, key: &Key) -> Option<dashmap::mapref::one::Ref<'_, EnaKey, Key>> {
         let ena_key = self.index_to_ena_key_map.get(key)?;
         let ena_root = self.ena.lock().unwrap().find(*ena_key);
         self.ena_key_to_index.get(&ena_root)

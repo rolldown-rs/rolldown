@@ -36,3 +36,4 @@ swc_ecma_utils = "0.89.0"
 swc_ecma_transforms_optimization = "0.136.0"
 swc_ecma_codegen = { version = "0.112.0" }
 ena = "0.14.0"
+regex = "1.5.4"

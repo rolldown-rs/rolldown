@@ -41,6 +41,9 @@ impl Chunk {
     fn generate_exports(&self, ctx: &mut PrepareContext) {
         let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
         entry_module.generate_exports();
+        ctx.modules.par_values_mut().for_each(|module| {
+            module.generate_namespace_export(ctx.uf);
+        });
     }
 
     pub fn de_conflict(&self, ctx: &mut PrepareContext) {
@@ -58,7 +61,7 @@ impl Chunk {
             .rev()
             .for_each(|module| {
                 module.declared_ids.iter().for_each(|id| {
-                    let root_id = uf.asset_find_root(id);
+                    let root_id = uf.find_root(id).unwrap();
                     if let hashbrown::hash_map::Entry::Vacant(e) = id_to_name.entry(root_id.clone())
                     {
                         let original_name = id.0.clone();

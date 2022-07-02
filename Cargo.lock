@@ -1390,6 +1390,7 @@ dependencies = [
  "once_cell",
  "petgraph",
  "rayon",
+ "regex",
  "rspack_sources",
  "sugar_path",
  "swc",

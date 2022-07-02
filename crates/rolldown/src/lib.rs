@@ -26,6 +26,8 @@ impl Rolldown {
             &mut self.graph,
         )
         .generate()?;
+
+        std::fs::create_dir_all(format!("{}/dist", self.graph.options.root.as_str(),)).unwrap();
         output_chunks.iter().for_each(|chunk| {
             std::fs::write(
                 format!(
@@ -39,8 +41,8 @@ impl Rolldown {
         });
         tracing::trace!("graph {:#?}", self.graph);
         Ok(RolldownOutput {
-          output: output_chunks,
-      })
+            output: output_chunks,
+        })
     }
 
     pub async fn generate(

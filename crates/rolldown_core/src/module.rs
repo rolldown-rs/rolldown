@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Mutex};
 
 use ast::{Id, ModuleItem};
 use hashbrown::{HashMap, HashSet};
@@ -55,19 +55,29 @@ impl Module {
             .collect()
     }
 
+    pub fn get_exported(&mut self, name: &JsWord) -> Option<&Id> {
+        if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
+            get_swc_compiler().run(|| {
+                self.merged_exports.insert(
+                    "*".into(),
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+                );
+            });
+        };
+        self.merged_exports.get(name)
+    }
+
     fn gen_namespace_export(&self, name_id: Id) -> ast::ModuleItem {
         // use ast::{PropOrSpread, PropName, Prop, Expr, Lit, Null, Stmt, KeyValueProp, Decl};
         use ast::*;
         let mut key_values = self
             .merged_exports
             .iter()
-            .filter(|(name, _)| {
-              *name != "*"
-            })
+            .filter(|(name, _)| *name != "*")
             .collect::<Vec<_>>();
         key_values.sort_by(|a, b| a.0.cmp(b.0));
         let mut props = vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
-            key: PropName::Str("__proto__".into()),
+            key: PropName::Ident(quote_ident!("__proto__")),
             value: Box::new(Expr::Lit(Lit::Null(Null::dummy()))),
         })))];
         props.append(
@@ -75,7 +85,16 @@ impl Module {
                 .into_iter()
                 .map(|(name, id)| {
                     PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
-                        key: PropName::Str(name.to_string().into()),
+                        key: {
+                            if Ident::verify_symbol(name).is_ok() {
+                                PropName::Ident(quote_ident!(
+                                    DUMMY_SP.apply_mark(Mark::new()),
+                                    name
+                                ))
+                            } else {
+                                PropName::Str(name.clone().into())
+                            }
+                        },
                         value: Box::new(Expr::Ident(id.clone().into())),
                     })))
                 })
@@ -162,6 +181,26 @@ impl Module {
         }
     }
 
+    pub fn generate_namespace_export(&mut self, uf: &UFriend<Id>) {
+        if self.merged_exports.contains_key(&"*".into()) {
+            let namespace_export = get_swc_compiler().run(|| {
+                let suggest_name = self.suggested_names.get(&"*".into()).unwrap();
+                let id =
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
+                uf.add_key(id.clone());
+                uf.union(&id, self.merged_exports.get(&"*".into()).unwrap());
+                // TODO: check if the name is used in the module
+                self.declared_ids.insert(id.clone());
+                self.gen_namespace_export(id)
+            });
+            self.ast
+                .as_mut_module()
+                .unwrap()
+                .body
+                .push(namespace_export);
+        }
+    }
+
     pub fn render(&self) -> String {
         let mut output = Vec::new();
 
@@ -226,17 +265,19 @@ impl Debug for Module {
             .field("id", &self.id)
             .field("dependencies", &self.dependencies)
             .field("dyn_dependencies", &self.dyn_dependencies)
+            .field("ast", &"...")
+            .field("top_level_mark", &self.top_level_mark)
             .field("imports", &self.imports)
             .field("re_exports", &self.re_exports)
             .field("local_exports", &self.local_exports)
             .field("merged_exports", &self.merged_exports)
             .field("side_effect", &self.side_effect)
             .field("resolved_module_ids", &self.resolved_module_ids)
-            .field("ast", &"...")
-            .field("included", &self.included)
-            .field("used_ids", &self.used_exported_id)
-            .field("unused_ids", &self.unused_ids())
             .field("declared_ids", &self.declared_ids)
+            .field("included", &self.included)
+            .field("used_exported_id", &self.used_exported_id)
+            .field("suggested_names", &self.suggested_names)
+            .field("is_user_defined_entry", &self.is_user_defined_entry)
             .finish()
     }
 }

@@ -170,29 +170,35 @@ impl Graph {
         order_modules.into_iter().for_each(|module_id| {
             let cur_module = self.module_by_id.get(&module_id).unwrap();
             let imports = cur_module
-            .imports
-            .clone();
+                .imports
+                .clone()
+                .into_iter()
+                .map(|(unresolved_module_id, imported_specifier)| {
+                    (
+                        cur_module
+                            .resolved_module_ids
+                            .get(&unresolved_module_id)
+                            .unwrap()
+                            .id
+                            .clone(),
+                        imported_specifier,
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            std::mem::drop(cur_module);
+
             imports
                 .iter()
-                .map(|(unresolved_module_id, imported_specifier)| {
-                  let imported_module_id = cur_module
-                  .resolved_module_ids
-                  .get(unresolved_module_id)
-                  .unwrap()
-                  .id.clone();
-                    let imported_module = self
-                        .module_by_id
-                        .get_mut(
-                          &imported_module_id,
-                        )
-                        .unwrap();
+                .for_each(|(imported_module_id, imported_specifier)| {
+                    let imported_module = self.module_by_id.get_mut(&imported_module_id).unwrap();
                     imported_specifier
                         .iter()
-                        .map(|spec| {
-                            assert_ne!(&spec.original, "*");
+                        .for_each(|spec| {
                             assert_ne!(&spec.original, "default");
-                            let original_id =
-                                imported_module.merged_exports.get(&spec.original).unwrap();
+                            let original_id = imported_module
+                                .get_exported(&spec.original)
+                                .unwrap()
+                                .clone();
                             self.uf.add_key(spec.alias.clone());
                             self.uf.add_key(original_id.clone());
                             self.uf.union(&spec.alias, &original_id);
@@ -204,18 +210,7 @@ impl Graph {
                                         .suggest_name(spec.original.clone(), spec.alias.0.clone());
                                 }
                             }
-                            original_id.clone()
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>()
-                .into_iter()
-                .for_each(|ids| {
-                    let module = self.module_by_id.get_mut(&module_id).unwrap();
-                    ids.into_iter().for_each(|id| {
-                        assert!(module.merged_exports.contains_key(&id.0));
-                        module.merged_exports.insert(id.0.clone(), id);
-                    });
+                        });
                 });
         });
     }
@@ -245,7 +240,7 @@ impl Graph {
         });
 
         self.link_exports(&order_modules);
-        self.link_exports(&order_modules);
+        self.link_imports(&order_modules);
     }
 
     fn include_statement(&mut self) {
