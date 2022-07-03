@@ -30,7 +30,7 @@ jobs:
         uses: Swatinem/rust-cache@v1
       - name: Build
         run: |
-          cargo test --all --all-features -- --nocapture --no-run
+          cargo test --all --all-features  --no-run -- --nocapture
       - name: Test
         run: |
           cargo test --all --all-features -- --nocapture
