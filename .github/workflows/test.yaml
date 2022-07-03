@@ -1,0 +1,43 @@
+name: Rust test
+
+on:
+  push:
+    branches:
+      - main
+      - next-rolldown
+    tags-ignore:
+      - "**"
+  pull_request:
+
+env:
+  TRACE: DEBUG
+
+jobs:
+  cargo-test:
+    name: Cargo test
+    strategy:
+      fail-fast: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+      # - name: Configure cache
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cargo/bin/
+      #       ~/.cargo/registry/index/
+      #       ~/.cargo/registry/cache/
+      #       ~/.cargo/git/db/
+      #       target/
+      #     key: test-${{ runner.os }}-cargo-gcc-${{ matrix.gcc }}-clang-${{ matrix.clang }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build
+        run: |
+          cargo test --all --all-features -- --nocapture --no-run
+      - name: Test
+        run: |
+          cargo test --all --all-features -- --nocapture
