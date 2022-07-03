@@ -11,7 +11,7 @@ async fn main() {
     enable_tracing_by_env();
     let mut rolldown_build = rolldown(NormalizedInputOptions {
         input: HashMap::from([("main".to_string(), "./index.js".to_string().into())]),
-        root: Path::new("./crates/rolldown/fixtures/basic-entry-export-default-expr")
+        root: Path::new("./crates/rolldown/fixtures/basic-import-default-class-expr")
           .resolve()
           .to_string_lossy()
           .to_string(),

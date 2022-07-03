@@ -244,6 +244,21 @@ impl Module {
                                     },
                                 )));
                             }
+                            ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDefaultDecl(decl)) => {
+                                match &mut decl.decl {
+                                    ast::DefaultDecl::Class(cls) => {
+                                        if cls.ident.is_none() {
+                                            cls.ident = Some(Ident::from(id.clone()));
+                                        }
+                                    }
+                                    ast::DefaultDecl::Fn(func) => {
+                                        if func.ident.is_none() {
+                                            func.ident = Some(Ident::from(id.clone()));
+                                        }
+                                    }
+                                    ast::DefaultDecl::TsInterfaceDecl(_) => unreachable!(),
+                                }
+                            }
                             _ => {}
                         };
                     });

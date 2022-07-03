@@ -155,12 +155,26 @@ impl Scanner {
             },
             ModuleDecl::ExportDefaultDecl(node) => match &node.decl {
                 ast::DefaultDecl::Class(cls) => {
-                    self.local_exports
-                        .insert("default".into(), cls.ident.clone().unwrap().to_id());
+                    self.local_exports.insert(
+                        "default".into(),
+                        cls.ident
+                            .clone()
+                            .unwrap_or_else(|| {
+                                quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "default")
+                            })
+                            .to_id(),
+                    );
                 }
                 ast::DefaultDecl::Fn(func) => {
-                    self.local_exports
-                        .insert("default".into(), func.ident.clone().unwrap().to_id());
+                    self.local_exports.insert(
+                        "default".into(),
+                        func.ident
+                            .clone()
+                            .unwrap_or_else(|| {
+                                quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "default")
+                            })
+                            .to_id(),
+                    );
                 }
                 ast::DefaultDecl::TsInterfaceDecl(_) => todo!(),
             },
