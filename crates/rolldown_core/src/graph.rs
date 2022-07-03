@@ -159,7 +159,7 @@ impl Graph {
                 .for_each(|ids| {
                     let module = self.module_by_id.get_mut(&module_id).unwrap();
                     ids.into_iter().for_each(|id| {
-                        assert!(module.merged_exports.contains_key(&id.0));
+                        assert!(!module.merged_exports.contains_key(&id.0));
                         module.merged_exports.insert(id.0.clone(), id);
                     });
                 });
