@@ -15,6 +15,7 @@ env:
 jobs:
   cargo-test:
     name: Cargo test
+    runs-on: "ubuntu-latest"
     strategy:
       fail-fast: true
     timeout-minutes: 30
