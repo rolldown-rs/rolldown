@@ -54,11 +54,11 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
         let ena_key1 = self
             .index_to_ena_key_map
             .get(key1)
-            .unwrap_or_else(|| panic!("Key {:?} not found", key1));
+            .unwrap_or_else(|| panic!("Key {:?} not found for pair ({:?}, {:?})", key1, key1, key2));
         let ena_key2 = self
             .index_to_ena_key_map
             .get(key2)
-            .unwrap_or_else(|| panic!("Key {:?} not found", key2));
+            .unwrap_or_else(|| panic!("Key {:?} not found for pair ({:?}, {:?})", key2, key1, key2));
         self.ena.lock().unwrap().union(*ena_key1, *ena_key2);
     }
 

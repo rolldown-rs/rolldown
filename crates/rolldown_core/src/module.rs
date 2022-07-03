@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Mutex};
+use std::{fmt::Debug, path::Path, sync::Mutex};
 
 use ast::{Id, Ident, ModuleItem};
 use hashbrown::{HashMap, HashSet};
@@ -205,7 +205,17 @@ impl Module {
         if let Some(default_exported_id) = self.merged_exports.get(&"default".into()) {
             let has_name = &default_exported_id.0 != "default";
             if !has_name {
-                let suggest_name = self.suggested_names.get(&"default".into()).unwrap();
+                let suggest_name = self
+                    .suggested_names
+                    .get(&"default".into())
+                    .map(|s| s.clone())
+                    .unwrap_or_else(|| {
+                        Path::new(&self.id.to_string())
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap()
+                            .into()
+                    });
                 let id =
                     quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
                 uf.add_key(id.clone());

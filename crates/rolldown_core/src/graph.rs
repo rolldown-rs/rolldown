@@ -191,31 +191,28 @@ impl Graph {
                 .iter()
                 .for_each(|(imported_module_id, imported_specifier)| {
                     let imported_module = self.module_by_id.get_mut(&imported_module_id).unwrap();
-                    imported_specifier
-                        .iter()
-                        .for_each(|spec| {
-                            let original_id = imported_module
-                                .get_exported(&spec.original)
-                                .unwrap_or_else(|| {
-                                    panic!(
-                                        "module {} has no export {}",
-                                        imported_module_id,
-                                        spec.original
-                                    )
-                                })
-                                .clone();
-                            self.uf.add_key(spec.alias.clone());
-                            self.uf.add_key(original_id.clone());
-                            self.uf.union(&spec.alias, &original_id);
-                            if &spec.original == "default" || &spec.original == "*" {
-                                // There is only one case where `specifier.used` is not a valid varible name.
-                                // Special case ` export { default } from ...`
-                                if &spec.alias.0 != "default" {
-                                    imported_module
-                                        .suggest_name(spec.original.clone(), spec.alias.0.clone());
-                                }
+                    imported_specifier.iter().for_each(|spec| {
+                        let original_id = imported_module
+                            .get_exported(&spec.original)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "module {} has no export {}",
+                                    imported_module_id, spec.original
+                                )
+                            })
+                            .clone();
+                        self.uf.add_key(spec.alias.clone());
+                        self.uf.add_key(original_id.clone());
+                        self.uf.union(&spec.alias, &original_id);
+                        if &spec.original == "default" || &spec.original == "*" {
+                            // There is only one case where `specifier.used` is not a valid varible name.
+                            // Special case ` export { default } from ...`
+                            if &spec.alias.0 != "default" {
+                                imported_module
+                                    .suggest_name(spec.original.clone(), spec.alias.0.clone());
                             }
-                        });
+                        }
+                    });
                 });
         });
     }
@@ -241,6 +238,10 @@ impl Graph {
                 .values()
                 .flat_map(|specs| specs.iter())
                 .map(|spec| &spec.alias)
+                .for_each(|id| self.uf.add_key(id.clone()));
+            module
+                .merged_exports
+                .values()
                 .for_each(|id| self.uf.add_key(id.clone()));
         });
 
