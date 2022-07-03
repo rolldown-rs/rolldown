@@ -43,6 +43,9 @@ impl Chunk {
         entry_module.generate_exports();
         ctx.modules.par_values_mut().for_each(|module| {
             module.generate_namespace_export(ctx.uf);
+            get_swc_compiler().run(|| {
+                module.shim_default_export_expr(ctx.uf);
+            });
         });
     }
 

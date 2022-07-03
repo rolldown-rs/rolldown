@@ -194,10 +194,15 @@ impl Graph {
                     imported_specifier
                         .iter()
                         .for_each(|spec| {
-                            assert_ne!(&spec.original, "default");
                             let original_id = imported_module
                                 .get_exported(&spec.original)
-                                .unwrap()
+                                .unwrap_or_else(|| {
+                                    panic!(
+                                        "module {} has no export {}",
+                                        imported_module_id,
+                                        spec.original
+                                    )
+                                })
                                 .clone();
                             self.uf.add_key(spec.alias.clone());
                             self.uf.add_key(original_id.clone());

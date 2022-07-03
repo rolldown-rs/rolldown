@@ -1,10 +1,12 @@
 use ast::{
-    BindingIdent, CallExpr, Callee, ExportSpecifier, Expr, Id, Ident, Lit, ModuleDecl, ModuleItem,
+    BindingIdent, CallExpr, Callee, ExportDefaultDecl, ExportSpecifier, Expr, Id, Ident, Lit,
+    ModuleDecl, ModuleItem,
 };
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common::{self, DUMMY_SP};
+use swc_common::{self, Mark, DUMMY_SP};
+
 use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::{noop_visit_mut_type, Visit, VisitMut, VisitMutWith, VisitWith};
 mod export_remover;
@@ -70,10 +72,7 @@ impl Scanner {
                             })
                             .unwrap_or_else(|| s.local.sym.clone());
                         let alias = s.local.to_id();
-                        imports.insert(SpecifierId {
-                            alias,
-                            original,
-                        });
+                        imports.insert(SpecifierId { alias, original });
                     }
                     ast::ImportSpecifier::Default(s) => {
                         imports.insert(SpecifierId {
@@ -154,6 +153,23 @@ impl Scanner {
                 ast::Decl::TsEnum(_) => todo!(),
                 ast::Decl::TsModule(_) => todo!(),
             },
+            ModuleDecl::ExportDefaultDecl(node) => match &node.decl {
+                ast::DefaultDecl::Class(cls) => {
+                    self.local_exports
+                        .insert("default".into(), cls.ident.clone().unwrap().to_id());
+                }
+                ast::DefaultDecl::Fn(func) => {
+                    self.local_exports
+                        .insert("default".into(), func.ident.clone().unwrap().to_id());
+                }
+                ast::DefaultDecl::TsInterfaceDecl(_) => todo!(),
+            },
+            ModuleDecl::ExportDefaultExpr(node) => {
+                self.local_exports.insert(
+                    "default".into(),
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "default").to_id(),
+                );
+            }
             ModuleDecl::ExportAll(node) => {
                 // export * from './other'
                 self.add_dependency(node.src.value.clone());
@@ -175,6 +191,12 @@ impl VisitMut for Scanner {
     }
 
     fn visit_mut_decl(&mut self, node: &mut ast::Decl) {
+        self.is_in_decl = true;
+        node.visit_mut_children_with(self);
+        self.is_in_decl = false;
+    }
+
+    fn visit_mut_export_default_decl(&mut self, node: &mut ExportDefaultDecl) {
         self.is_in_decl = true;
         node.visit_mut_children_with(self);
         self.is_in_decl = false;

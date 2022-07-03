@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Mutex};
 
-use ast::{Id, ModuleItem};
+use ast::{Id, Ident, ModuleItem};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
@@ -201,6 +201,46 @@ impl Module {
         }
     }
 
+    pub fn shim_default_export_expr(&mut self, uf: &UFriend<Id>) {
+        if let Some(default_exported_id) = self.merged_exports.get(&"default".into()) {
+            let has_name = &default_exported_id.0 != "default";
+            if !has_name {
+                let suggest_name = self.suggested_names.get(&"default".into()).unwrap();
+                let id =
+                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
+                uf.add_key(id.clone());
+                uf.union(&id, default_exported_id);
+                // TODO: check if the name is used in the module
+                self.declared_ids.insert(id.clone());
+                self.ast
+                    .as_mut_module()
+                    .unwrap()
+                    .body
+                    .iter_mut()
+                    .for_each(|module_item| {
+                        match module_item {
+                            ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDefaultExpr(expr)) => {
+                                *module_item = ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Var(
+                                    ast::VarDecl {
+                                        span: DUMMY_SP,
+                                        declare: false,
+                                        kind: ast::VarDeclKind::Var,
+                                        decls: vec![ast::VarDeclarator {
+                                            span: DUMMY_SP,
+                                            name: ast::Pat::Ident(Ident::from(id.clone()).into()),
+                                            init: Some(expr.expr.take()),
+                                            definite: false,
+                                        }],
+                                    },
+                                )));
+                            }
+                            _ => {}
+                        };
+                    });
+            }
+        }
+    }
+
     pub fn render(&self) -> String {
         let mut output = Vec::new();
 
@@ -266,6 +306,7 @@ impl Debug for Module {
             .field("dependencies", &self.dependencies)
             .field("dyn_dependencies", &self.dyn_dependencies)
             .field("ast", &"...")
+            // .field("ast", &self.ast)
             .field("top_level_mark", &self.top_level_mark)
             .field("imports", &self.imports)
             .field("re_exports", &self.re_exports)

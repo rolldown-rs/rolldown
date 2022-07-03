@@ -1,6 +1,9 @@
-use ast::{ClassDecl, Decl, ExportDecl, Id, ModuleItem, Stmt};
+use ast::{
+    ClassDecl, Decl, ExportDecl, FnDecl, Id, ModuleItem, Stmt, VarDecl, VarDeclKind, VarDeclarator,
+};
 use hashbrown::HashSet;
 use swc_common::{util::take::Take, DUMMY_SP};
+use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::Fold;
 
 pub struct TreeShakeExportRemover {
@@ -78,41 +81,48 @@ impl Fold for ExportRemover {
     fn fold_module_items(&mut self, items: Vec<ast::ModuleItem>) -> Vec<ast::ModuleItem> {
         items
             .into_iter()
-            .map(|mut module_item| match &mut module_item {
-                ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDecl(decl)) => match &mut decl.decl {
+            .map(|module_item| match module_item {
+                ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDecl(decl)) => match decl.decl {
                     ast::Decl::Class(class) => {
-                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Class(std::mem::replace(
-                            class,
-                            ClassDecl {
-                                ident: Take::dummy(),
-                                declare: false,
-                                class: Take::dummy(),
-                            },
-                        ))))
+                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Class(class)))
                     }
                     ast::Decl::Fn(fn_decl) => {
-                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Fn(std::mem::replace(
-                            fn_decl,
-                            ast::FnDecl {
-                                ident: Take::dummy(),
-                                declare: false,
-                                function: Take::dummy(),
-                            },
-                        ))))
+                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Fn(fn_decl)))
                     }
-                    ast::Decl::Var(var) => {
-                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Var(std::mem::replace(
-                            var,
-                            ast::VarDecl {
-                                span: Take::dummy(),
-                                declare: false,
-                                decls: vec![],
-                                kind: var.kind.clone(),
-                            },
-                        ))))
-                    }
-                    _ => module_item,
+                    ast::Decl::Var(var) => ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Var(var))),
+                    _ => unreachable!(),
                 },
+                ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDefaultDecl(decl)) => match decl.decl
+                {
+                    ast::DefaultDecl::Class(cls) => {
+                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Class(ClassDecl {
+                            ident: cls.ident.unwrap(),
+                            declare: false,
+                            class: cls.class,
+                        })))
+                    }
+                    ast::DefaultDecl::Fn(func) => {
+                        ModuleItem::Stmt(ast::Stmt::Decl(ast::Decl::Fn(FnDecl {
+                            ident: func.ident.unwrap(),
+                            declare: false,
+                            function: func.function,
+                        })))
+                    }
+                    ast::DefaultDecl::TsInterfaceDecl(_) => unreachable!(),
+                },
+                // ModuleItem::ModuleDecl(ast::ModuleDecl::ExportDefaultExpr(expr)) => {
+                //     ModuleItem::Stmt(Stmt::Decl(Decl::Var(VarDecl {
+                //         span: DUMMY_SP,
+                //         declare: false,
+                //         kind: VarDeclKind::Var,
+                //         decls: vec![VarDeclarator {
+                //             span: DUMMY_SP,
+                //             name: ast::Pat::Ident(quote_ident!("_default").into()),
+                //             init: Some(expr.expr),
+                //             definite: false,
+                //         }],
+                //     })))
+                // }
                 _ => module_item,
             })
             .collect()
