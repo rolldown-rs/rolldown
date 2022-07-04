@@ -1,0 +1,4 @@
+packages:
+  # all packages in subdirs of packages/
+  # - 'packages/**'
+  - 'examples/**'
