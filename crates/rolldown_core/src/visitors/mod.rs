@@ -105,9 +105,10 @@ impl Scanner {
                                     .exported
                                     .as_ref()
                                     .map(|name| ident_of_module_export_name(name).sym.clone());
+                                let orginal = ident_of_module_export_name(&s.orig).sym.clone();
                                 re_exports.insert(Specifier {
-                                    alias,
-                                    orginal: ident_of_module_export_name(&s.orig).sym.clone(),
+                                    alias: alias.unwrap_or_else(|| orginal.clone()),
+                                    orginal,
                                 });
                             } else {
                                 // export { name }
@@ -123,7 +124,7 @@ impl Scanner {
                                 .entry(source)
                                 .or_default()
                                 .insert(Specifier {
-                                    alias: Some(ident_of_module_export_name(&s.name).sym.clone()),
+                                    alias: ident_of_module_export_name(&s.name).sym.clone(),
                                     orginal: "*".into(),
                                 });
                         }
@@ -244,7 +245,7 @@ impl VisitMut for Scanner {
 // pub type Specifier = ast::ImportSpecifier;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Specifier {
-    pub alias: Option<JsWord>,
+    pub alias: JsWord,
     pub orginal: JsWord,
 }
 

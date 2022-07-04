@@ -127,6 +127,7 @@ impl Graph {
         });
 
         order_modules.into_iter().for_each(|module_id| {
+            tracing::trace!("link_exports for {}", module_id);
             let cur_module = self.module_by_id.get(&module_id).unwrap();
             let re_exports = cur_module
                 .re_exports
@@ -158,7 +159,7 @@ impl Graph {
                                 .get(&spec.orginal)
                                 .unwrap()
                                 .clone();
-                            original_id.clone()
+                            (spec.alias.clone(), original_id.clone())
                         })
                         .collect::<Vec<_>>()
                 })
@@ -166,9 +167,9 @@ impl Graph {
                 .into_iter()
                 .for_each(|ids| {
                     let module = self.module_by_id.get_mut(&module_id).unwrap();
-                    ids.into_iter().for_each(|id| {
-                        assert!(!module.merged_exports.contains_key(&id.0));
-                        module.merged_exports.insert(id.0.clone(), id);
+                    ids.into_iter().for_each(|(alias, id)| {
+                        assert!(!module.merged_exports.contains_key(&id.0), "{}", id.0);
+                        module.merged_exports.insert(alias, id);
                     });
                 });
         });
