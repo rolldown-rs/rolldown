@@ -168,7 +168,7 @@ impl Graph {
                 .for_each(|ids| {
                     let module = self.module_by_id.get_mut(&module_id).unwrap();
                     ids.into_iter().for_each(|(alias, id)| {
-                        assert!(!module.merged_exports.contains_key(&id.0), "{}", id.0);
+                        assert!(!module.merged_exports.contains_key(&alias), "{}", id.0);
                         module.merged_exports.insert(alias, id);
                     });
                 });
@@ -239,7 +239,7 @@ impl Graph {
         self.module_by_id.values().for_each(|module| {
             module
                 .local_binded_ids
-                .iter()
+                .values()
                 .for_each(|id| self.uf.add_key(id.clone()));
 
             module

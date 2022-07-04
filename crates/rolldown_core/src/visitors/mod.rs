@@ -179,12 +179,17 @@ impl Scanner {
                 }
                 ast::DefaultDecl::TsInterfaceDecl(_) => todo!(),
             },
-            ModuleDecl::ExportDefaultExpr(node) => {
-                self.local_exports.insert(
-                    "default".into(),
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "default").to_id(),
-                );
-            }
+            ModuleDecl::ExportDefaultExpr(node) => match node.expr.as_ref() {
+                Expr::Ident(ident) => {
+                    self.local_exports.insert("default".into(), ident.to_id());
+                }
+                _ => {
+                    self.local_exports.insert(
+                        "default".into(),
+                        quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "default").to_id(),
+                    );
+                }
+            },
             ModuleDecl::ExportAll(node) => {
                 // export * from './other'
                 self.add_dependency(node.src.value.clone());

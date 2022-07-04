@@ -154,7 +154,11 @@ impl ResolvingModuleJob {
             dyn_dependencies: scanner.dyn_dependencies,
             included: true,
             used_exported_id: Default::default(),
-            local_binded_ids: scanner.declared_ids,
+            local_binded_ids: scanner
+                .declared_ids
+                .into_iter()
+                .map(|id| (id.0.clone(), id))
+                .collect(),
             suggested_names: Default::default(),
             is_user_defined_entry: self.is_entry,
             // used_exports: Default::default(),

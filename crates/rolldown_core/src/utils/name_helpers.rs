@@ -6,9 +6,65 @@ static RESERVED_WORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
   "break case class catch const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield enum await implements package protected static interface private public".split(' ').collect()
 });
 
+static RESERVED_NAMES: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+  [
+	"await",
+	"break",
+	"case",
+	"catch",
+	"class",
+	"const",
+	"continue",
+	"debugger",
+	"default",
+	"delete",
+	"do",
+	"else",
+	"enum",
+	"eval",
+	"export",
+	"extends",
+	"false",
+	"finally",
+	"for",
+	"function",
+	"if",
+	"implements",
+	"import",
+	"in",
+	"instanceof",
+	"interface",
+	"let",
+	"NaN",
+	"new",
+	"null",
+	"package",
+	"private",
+	"protected",
+	"public",
+	"return",
+	"static",
+	"super",
+	"switch",
+	"this",
+	"throw",
+	"true",
+	"try",
+	"typeof",
+	"undefined",
+	"var",
+	"void",
+	"while",
+	"with",
+	"yield",
+].into()
+});
+
 static BUILTINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
   "Infinity NaN undefined null true false eval uneval isFinite isNaN parseFloat parseInt decodeURI decodeURIComponent encodeURI encodeURIComponent escape unescape Object Function Boolean Symbol Error EvalError InternalError RangeError ReferenceError SyntaxError TypeError URIError Number Math Date String RegExp Array Int8Array Uint8Array Uint8ClampedArray Int16Array Uint16Array Int32Array Uint32Array Float32Array Float64Array Map Set WeakMap WeakSet SIMD ArrayBuffer DataView JSON Promise Generator GeneratorFunction Reflect Proxy Intl".split(' ').collect()
 });
+
+
 
 static BLACKLISTED: Lazy<HashSet<&'static str>> = Lazy::new(|| {
   BUILTINS
@@ -38,11 +94,17 @@ pub fn is_legal_js_var_name(s: &str) -> bool {
 
 pub static UN_LEGAL_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"-(\w)").unwrap());
 
-pub fn make_legal(s: &str) -> String {
-  // 	str = str.replace(/-(\w)/g, (_, letter) => letter.toUpperCase()).replace(ILLEGAL_CHARACTERS, '_');
+// static  IllegalCharacters: Lazy<regex::Regex> = /[^$_a-zA-Z0-9]/g;
+static  ILLEGAL_CHARACTERS: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"[^$_a-zA-Z0-9]").unwrap());
+
+pub fn make_legal(raw: &str) -> String {
+  let s = ILLEGAL_CHARACTERS.replace_all(raw, "_");
   let mut s = s.to_string();
   if starts_with_digit(&s) || BLACKLISTED.contains(s.as_str()) {
     s.insert(0, '_');
+  }
+  if &s != raw {
+    tracing::debug!("make {} -> {}", raw, s);
   }
   s
 }

@@ -9,8 +9,8 @@ use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_utils::quote_ident;
 
 use crate::{
-    get_swc_compiler, ufriend::UFriend, LocalExports, MergedExports, ModuleById, ResolvedId,
-    SideEffect, Specifier, SpecifierId,
+    get_swc_compiler, make_legal, ufriend::UFriend, LocalExports, MergedExports, ModuleById,
+    ResolvedId, SideEffect, Specifier, SpecifierId,
 };
 
 pub struct Module {
@@ -28,7 +28,7 @@ pub struct Module {
     pub side_effect: Option<SideEffect>,
     pub resolved_module_ids: HashMap<JsWord, ResolvedId>,
     // Declared vars in lolcal scope. This is not include vars that imported from other modules.
-    pub local_binded_ids: HashSet<Id>,
+    pub local_binded_ids: HashMap<JsWord, Id>,
     pub included: bool,
     pub used_exported_id: HashSet<Id>,
     pub suggested_names: HashMap<JsWord, JsWord>,
@@ -186,12 +186,13 @@ impl Module {
         if self.merged_exports.contains_key(&"*".into()) {
             let namespace_export = get_swc_compiler().run(|| {
                 let suggest_name = self.suggested_names.get(&"*".into()).unwrap();
+                let suggest_name = make_legal(&suggest_name);
                 let id =
                     quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
                 uf.add_key(id.clone());
                 uf.union(&id, self.merged_exports.get(&"*".into()).unwrap());
                 // TODO: check if the name is used in the module
-                self.local_binded_ids.insert(id.clone());
+                self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.gen_namespace_export(id)
             });
             self.ast
@@ -217,12 +218,13 @@ impl Module {
                             .unwrap()
                             .into()
                     });
+                let suggest_name = make_legal(&suggest_name);
                 let id =
                     quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
                 uf.add_key(id.clone());
                 uf.union(&id, default_exported_id);
                 // TODO: check if the name is used in the module
-                self.local_binded_ids.insert(id.clone());
+                self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.ast
                     .as_mut_module()
                     .unwrap()
@@ -284,6 +286,16 @@ impl Module {
 
         emitter.emit_program(&self.ast).unwrap();
         String::from_utf8(output).unwrap()
+    }
+
+    fn get_valid_name_in_current_scope(&mut self, name: &str) -> String {
+        let mut name = name.to_string();
+        let mut i = 0;
+        while self.local_binded_ids.contains_key(&name.as_str().into()) {
+            i += 1;
+            name = format!("{}${}", name, i);
+        }
+        name
     }
 
     pub fn gen_export(&self) -> ast::ModuleItem {
