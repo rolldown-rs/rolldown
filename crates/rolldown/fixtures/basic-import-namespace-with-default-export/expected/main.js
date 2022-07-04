@@ -1,7 +1,7 @@
-const foo = 1;
+var foo = 'foo.js';
 var namespaceFoo = Object.freeze({
     __proto__: null,
-    foo: foo
+    "default": foo
 });
 
 console.log(namespaceFoo);

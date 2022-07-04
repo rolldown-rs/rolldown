@@ -102,7 +102,7 @@ impl Module {
         );
         ModuleItem::Stmt(Stmt::Decl(Decl::Var(VarDecl {
             span: DUMMY_SP,
-            kind: VarDeclKind::Const,
+            kind: VarDeclKind::Var,
             declare: false,
             decls: vec![VarDeclarator {
                 span: DUMMY_SP,
