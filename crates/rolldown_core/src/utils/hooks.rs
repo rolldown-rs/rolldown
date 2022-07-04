@@ -52,10 +52,11 @@ pub async fn resolve(
             args.importer,
             args.specifier
         );
-        let mut path = Path::new(base_dir)
+        let path = Path::new(base_dir)
             .join(Path::new(args.specifier))
             .resolve();
-        path.set_extension("js");
-        ResolvedId::new(path.to_string_lossy().to_string(), false)
+        let id = path.to_string_lossy().to_string();
+        let id = if id.ends_with("js") { id } else { id + ".js" };
+        ResolvedId::new(id, false)
     })
 }
