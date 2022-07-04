@@ -203,7 +203,7 @@ impl Module {
     }
 
     pub fn shim_default_export_expr(&mut self, uf: &UFriend<Id>) {
-        if let Some(default_exported_id) = self.merged_exports.get(&"default".into()) {
+        if let Some(default_exported_id) = self.local_exports.get(&"default".into()) {
             let has_name = &default_exported_id.0 != "default";
             if !has_name {
                 let suggest_name = self

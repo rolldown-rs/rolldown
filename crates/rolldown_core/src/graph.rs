@@ -125,31 +125,39 @@ impl Graph {
                 self.module_by_id.get_mut(&module_id).unwrap().side_effect = side_effect;
             }
         });
+
         order_modules.into_iter().for_each(|module_id| {
             let cur_module = self.module_by_id.get(&module_id).unwrap();
-            cur_module
+            let re_exports = cur_module
                 .re_exports
                 .iter()
-                .map(|(unresolved_module_id, re_exported_specifier)| {
-                    let re_exported_module = self
-                        .module_by_id
-                        .get(
-                            &cur_module
-                                .resolved_module_ids
-                                .get(unresolved_module_id)
-                                .unwrap()
-                                .id,
-                        )
-                        .unwrap();
+                .map(|(unresolved_module_id, imported_specifier)| {
+                    (
+                        cur_module
+                            .resolved_module_ids
+                            .get(&unresolved_module_id)
+                            .unwrap()
+                            .id
+                            .clone(),
+                        imported_specifier.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            std::mem::drop(cur_module);
+            re_exports
+                .into_iter()
+                .map(|(re_exported_module_id, re_exported_specifier)| {
+                    let re_exported_module =
+                        self.module_by_id.get_mut(&re_exported_module_id).unwrap();
                     re_exported_specifier
                         .iter()
                         .map(|spec| {
                             assert_ne!(&spec.orginal, "*");
-                            assert_ne!(&spec.orginal, "default");
                             let original_id = re_exported_module
                                 .merged_exports
                                 .get(&spec.orginal)
-                                .unwrap();
+                                .unwrap()
+                                .clone();
                             original_id.clone()
                         })
                         .collect::<Vec<_>>()
