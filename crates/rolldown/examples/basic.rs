@@ -11,12 +11,13 @@ async fn main() {
     enable_tracing_by_env();
     let mut rolldown_build = rolldown(NormalizedInputOptions {
         input: HashMap::from([("main".to_string(), "./index.js".to_string().into())]),
-        root: Path::new("./crates/rolldown/fixtures/basic-re-export-default-as")
+        root: Path::new("./crates/rolldown/fixtures/basic-import-default-class-decl")
           .resolve()
           .to_string_lossy()
           .to_string(),
         ..Default::default()
     });
+    
     // let mut compiler = rolldown(NormalizedInputOptions {
     //     input: HashMap::from([("main".to_string(), "./index.js".to_string().into())]),
     //     root: Path::new("./crates/rolldown/fixtures/circle")

@@ -1,6 +1,6 @@
 use ast::{
-    BindingIdent, CallExpr, Callee, ExportDefaultDecl, ExportSpecifier, Expr, Id, Ident, Lit,
-    ModuleDecl, ModuleItem,
+    BindingIdent, CallExpr, Callee, ExportDefaultDecl, ExportSpecifier, Expr, Id, Ident,
+    ImportDecl, Lit, ModuleDecl, ModuleItem, Stmt,
 };
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
@@ -33,7 +33,7 @@ pub struct Scanner {
     pub declared_ids: HashSet<Id>,
     pub top_level_mark: swc_common::Mark,
 
-    pub is_in_decl: bool,
+    pub is_in_import: bool,
 }
 
 impl Scanner {
@@ -139,15 +139,23 @@ impl Scanner {
                 ast::Decl::Class(decl) => {
                     self.local_exports
                         .insert(decl.ident.sym.clone(), decl.ident.to_id());
+                    self.declared_ids.insert(decl.ident.to_id());
                 }
                 ast::Decl::Fn(decl) => {
                     self.local_exports
                         .insert(decl.ident.sym.clone(), decl.ident.to_id());
+                    self.declared_ids.insert(decl.ident.to_id());
                 }
                 ast::Decl::Var(decl) => {
-                    decl.visit_with(&mut VarDeclCollector {
-                        local_exports: &mut self.local_exports,
-                    });
+                    let mut collector = VarDeclCollector::default();
+                    decl.visit_with(&mut collector);
+                    self.local_exports.extend(collector.local_exports.clone());
+                    self.declared_ids.extend(
+                        collector
+                            .local_exports
+                            .into_values()
+                            .collect::<HashSet<_>>(),
+                    );
                 }
                 ast::Decl::TsInterface(_) => todo!(),
                 ast::Decl::TsTypeAlias(_) => todo!(),
@@ -165,6 +173,9 @@ impl Scanner {
                             })
                             .to_id(),
                     );
+                    cls.ident.as_ref().map(|ident| {
+                        self.declared_ids.insert(ident.to_id());
+                    });
                 }
                 ast::DefaultDecl::Fn(func) => {
                     self.local_exports.insert(
@@ -176,6 +187,9 @@ impl Scanner {
                             })
                             .to_id(),
                     );
+                    func.ident.as_ref().map(|ident| {
+                        self.declared_ids.insert(ident.to_id());
+                    });
                 }
                 ast::DefaultDecl::TsInterfaceDecl(_) => todo!(),
             },
@@ -207,19 +221,38 @@ impl VisitMut for Scanner {
         if self.side_effect.is_none() {
             self.side_effect = side_effect_of_module_item(node)
         }
+        match node {
+            ModuleItem::Stmt(Stmt::Decl(decl)) => match decl {
+                ast::Decl::Class(decl) => {
+                    self.declared_ids.insert(decl.ident.to_id());
+                }
+                ast::Decl::Fn(decl) => {
+                    self.declared_ids.insert(decl.ident.to_id());
+                }
+                ast::Decl::Var(decl) => {
+                    let mut collector = VarDeclCollector::default();
+                    decl.visit_with(&mut collector);
+                    self.declared_ids.extend(
+                        collector
+                            .local_exports
+                            .into_values()
+                            .collect::<HashSet<_>>(),
+                    );
+                }
+                ast::Decl::TsInterface(_) => todo!(),
+                ast::Decl::TsTypeAlias(_) => todo!(),
+                ast::Decl::TsEnum(_) => todo!(),
+                ast::Decl::TsModule(_) => todo!(),
+            },
+            _ => {}
+        }
         node.visit_mut_children_with(self);
     }
 
-    fn visit_mut_decl(&mut self, node: &mut ast::Decl) {
-        self.is_in_decl = true;
+    fn visit_mut_import_decl(&mut self, node: &mut ImportDecl) {
+        self.is_in_import = true;
         node.visit_mut_children_with(self);
-        self.is_in_decl = false;
-    }
-
-    fn visit_mut_export_default_decl(&mut self, node: &mut ExportDefaultDecl) {
-        self.is_in_decl = true;
-        node.visit_mut_children_with(self);
-        self.is_in_decl = false;
+        self.is_in_import = false;
     }
 
     fn visit_mut_module_decl(&mut self, node: &mut ModuleDecl) {
@@ -232,19 +265,20 @@ impl VisitMut for Scanner {
         node.visit_mut_children_with(self);
     }
 
-    fn visit_mut_ident(&mut self, node: &mut Ident) {
-        if self.is_in_decl {
-            let ident = Ident {
-                sym: node.sym.clone(),
-                span: DUMMY_SP.apply_mark(self.top_level_mark),
-                optional: false,
-            };
-            if node.to_id() == ident.to_id() {
-                self.declared_ids.insert(node.to_id());
-            }
-        }
-        node.visit_mut_children_with(self);
-    }
+    // fn visit_mut_binding_ident(&mut self, binding_ident: &mut BindingIdent) {
+    //     if !self.is_in_import {
+    //         let node = &binding_ident.id;
+    //         let ident = Ident {
+    //             sym: node.sym.clone(),
+    //             span: DUMMY_SP.apply_mark(self.top_level_mark),
+    //             optional: false,
+    //         };
+    //         if node.to_id() == ident.to_id() {
+    //             self.declared_ids.insert(node.to_id());
+    //         }
+    //         binding_ident.visit_mut_children_with(self);
+    //     }
+    // }
 }
 
 // pub type Specifier = ast::ImportSpecifier;
@@ -276,11 +310,12 @@ impl VisitMut for ClearMark {
     }
 }
 
-pub struct VarDeclCollector<'a> {
-    local_exports: &'a mut HashMap<JsWord, Id>,
+#[derive(Default)]
+pub struct VarDeclCollector {
+    pub local_exports: HashMap<JsWord, Id>,
 }
 
-impl<'a> Visit for VarDeclCollector<'a> {
+impl Visit for VarDeclCollector {
     fn visit_binding_ident(&mut self, n: &BindingIdent) {
         let id = n.id.to_id();
         self.local_exports.insert(id.0.clone(), id);
