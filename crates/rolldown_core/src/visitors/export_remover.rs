@@ -80,7 +80,7 @@ impl Fold for ExportRemover {
                     }
                     ast::DefaultDecl::TsInterfaceDecl(_) => unreachable!(),
                 },
-                // ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_)) => vec![],
+                ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_)) => vec![],
                 _ => vec![module_item],
             })
             .collect()

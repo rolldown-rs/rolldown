@@ -39,14 +39,17 @@ impl Chunk {
     }
 
     fn generate_exports(&self, ctx: &mut PrepareContext) {
+      ctx.modules.par_values_mut().for_each(|module| {
+        module.generate_namespace_export(ctx.uf);
+        get_swc_compiler().run(|| {
+          module.shim_default_export_expr(ctx.uf);
+        });
+        if let ast::Program::Module(ast_module) = &mut module.ast {
+          *ast_module = ast_module.take().fold_with(&mut ExportRemover);
+        }
+      });
         let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
         entry_module.generate_exports();
-        ctx.modules.par_values_mut().for_each(|module| {
-            module.generate_namespace_export(ctx.uf);
-            get_swc_compiler().run(|| {
-                module.shim_default_export_expr(ctx.uf);
-            });
-        });
     }
 
     pub fn de_conflict(&self, ctx: &mut PrepareContext) {
@@ -92,8 +95,6 @@ impl Chunk {
             });
             ast.visit_mut_with(&mut renamer);
 
-            *ast = std::mem::replace(ast, ast::Program::Module(Take::dummy()))
-                .fold_with(&mut ExportRemover);
         });
 
         tracing::debug!("id_to_name {:#?}", id_to_name);
