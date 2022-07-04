@@ -16,7 +16,7 @@ impl Rolldown {
 
     pub async fn write(
         &mut self,
-        output_options: NormalizedOutputOptions,
+        _output_options: NormalizedOutputOptions,
     ) -> anyhow::Result<RolldownOutput> {
         self.graph.build().await?;
         // Bundle::new(self.graph.options.clone(), Default::default(), &mut self.graph).old_should_not_be_used_generate()?;
@@ -47,7 +47,7 @@ impl Rolldown {
 
     pub async fn generate(
         &mut self,
-        output_options: NormalizedOutputOptions,
+        _output_options: NormalizedOutputOptions,
     ) -> anyhow::Result<RolldownOutput> {
         self.graph.build().await?;
         let output_chunks = Bundle::new(

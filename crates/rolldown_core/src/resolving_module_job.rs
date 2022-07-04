@@ -5,9 +5,9 @@ use std::sync::{
 
 use dashmap::DashSet;
 use swc_atoms::JsWord;
-use swc_common::{Mark, DUMMY_SP};
+use swc_common::{Mark};
 use swc_ecma_transforms::resolver;
-use swc_ecma_utils::quote_ident;
+
 use swc_ecma_visit::VisitMutWith;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 

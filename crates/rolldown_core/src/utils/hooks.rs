@@ -1,7 +1,7 @@
 use crate::{
-    parse_to_url, JobContext, LoadArgs, PluginDriver, ResolveArgs, ResolvedId, TransformArgs,
+    JobContext, LoadArgs, PluginDriver, ResolveArgs, ResolvedId, TransformArgs,
 };
-use nodejs_resolver::ResolveResult;
+
 use std::path::Path;
 use sugar_path::PathSugar;
 

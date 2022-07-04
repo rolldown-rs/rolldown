@@ -1,9 +1,9 @@
 use crate::{TreeShakeExportRemover, Module};
-use ast::Id;
-use hashbrown::HashSet;
+
+
 use swc_common::{Mark, chain};
 use swc_ecma_transforms_optimization::simplify;
-use swc_ecma_visit::{Fold, FoldWith, VisitMut};
+use swc_ecma_visit::{FoldWith};
 
 use crate::get_swc_compiler;
 

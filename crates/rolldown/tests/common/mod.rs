@@ -4,7 +4,7 @@ use std::path::Path;
 use hashbrown::HashMap;
 use rolldown::{rolldown, Rolldown};
 use rolldown_core::NormalizedInputOptions;
-use sugar_path::PathSugar;
+
 
 // pub async fn compile(options: CompilerOptions, plugins: Vec<Box<dyn Plugin>>) -> Compiler {
 //   let mut bundler = Compiler::new(options, plugins);

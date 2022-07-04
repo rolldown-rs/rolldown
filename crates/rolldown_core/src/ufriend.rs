@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use ena::unify::{InPlaceUnificationTable, UnifyKey};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Mutex};
+use std::{fmt::Debug, hash::Hash, sync::Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EnaKey(u32);

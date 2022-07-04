@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::Path, sync::Mutex};
+use std::{fmt::Debug, path::Path};
 
 use ast::{Id, Ident, ModuleItem};
 use hashbrown::{HashMap, HashSet};
@@ -137,7 +137,7 @@ impl Module {
         })))
     }
 
-    pub fn mark_used_id(&mut self, name: &JsWord, id: &Id) {
+    pub fn mark_used_id(&mut self, name: &JsWord, _id: &Id) {
         if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
             let namespace_export = get_swc_compiler().run(|| {
                 self.merged_exports.insert(
@@ -165,7 +165,7 @@ impl Module {
     pub fn unused_ids(&self) -> HashSet<Id> {
         self.merged_exports
             .iter()
-            .filter_map(|(name, id)| {
+            .filter_map(|(_name, id)| {
                 if self.used_exported_id.contains(id) {
                     None
                 } else {

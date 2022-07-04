@@ -1,5 +1,5 @@
 use ast::{
-    BindingIdent, CallExpr, Callee, ExportDefaultDecl, ExportSpecifier, Expr, Id, Ident,
+    BindingIdent, CallExpr, Callee, ExportSpecifier, Expr, Id, Ident,
     ImportDecl, Lit, ModuleDecl, ModuleItem, Stmt,
 };
 use hashbrown::{HashMap, HashSet};
@@ -15,7 +15,7 @@ mod renamer;
 pub use renamer::*;
 
 use crate::{
-    collect_ident_of_pat, collect_js_word_of_pat, side_effect_of_module_item, LocalExports,
+    side_effect_of_module_item, LocalExports,
     MergedExports, SideEffect,
 };
 

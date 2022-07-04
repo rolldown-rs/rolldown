@@ -1,10 +1,9 @@
 use ast::{
-    ClassDecl, Decl, ExportDecl, FnDecl, Id, ModuleDecl, ModuleItem, Stmt, VarDecl, VarDeclKind,
-    VarDeclarator,
+    ClassDecl, FnDecl, Id, ModuleDecl, ModuleItem,
 };
 use hashbrown::HashSet;
-use swc_common::{util::take::Take, DUMMY_SP};
-use swc_ecma_utils::quote_ident;
+use swc_common::{util::take::Take};
+
 use swc_ecma_visit::Fold;
 
 pub struct TreeShakeExportRemover {

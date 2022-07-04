@@ -1,16 +1,16 @@
-use std::collections::{HashMap, HashSet, VecDeque};
 
-use swc_atoms::JsWord;
+
+
 // use crate::{
 //     BundleOptions, Chunk, ChunkGraph, ChunkIdAlgo, ChunkKind, JsModuleKind, ModuleGraphContainer,
 // };
 use tracing::instrument;
-use petgraph::dot::Dot;
 
-use crate::{uri_to_chunk_name, Chunk, ModuleById, Graph, ChunkGraph};
+
+use crate::{uri_to_chunk_name, ModuleById, Graph};
 
 #[instrument(skip_all)]
-pub fn code_splitting2(graph: &mut Graph) {
+pub fn code_splitting2(_graph: &mut Graph) {
   // // let code_splitting_options = &bundle_options.code_splitting;
   // let is_enable_code_splitting = true;
   // let is_reuse_existing_chunk = true;
@@ -225,7 +225,7 @@ struct ChunkIdGenerator<'me> {
 }
 
 impl<'me> ChunkIdGenerator<'me> {
-  pub fn gen_id(&mut self, module_uri: &str) -> String {
+  pub fn gen_id(&mut self, _module_uri: &str) -> String {
       let js_mod = self.module_by_id.get(&"TODO".into()).unwrap();
       uri_to_chunk_name(self.root, &js_mod.id)
   }

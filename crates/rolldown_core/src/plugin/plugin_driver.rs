@@ -1,10 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 
-use nodejs_resolver::Resolver;
-use tracing::instrument;
+
+
 
 use crate::{
-  Asset, JobContext, LoadArgs, Plugin, PluginContext,
+  JobContext, LoadArgs, Plugin, PluginContext,
   PluginResolveHookOutput, ResolveArgs, NormalizedInputOptions, PluginLoadHookOutput,
 };
 

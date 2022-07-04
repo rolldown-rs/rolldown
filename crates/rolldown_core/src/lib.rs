@@ -26,7 +26,7 @@ pub use chunk_spliter::*;
 mod chunk_graph;
 pub use chunk_graph::*;
 mod ufriend;
-pub(crate) use ufriend::*;
+
 
 pub type ModuleById = HashMap<JsWord, Module>;
 pub type LocalExports = HashMap<JsWord, Id>;

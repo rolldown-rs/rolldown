@@ -52,7 +52,7 @@ use swc::{config::IsModule, Compiler as SwcCompiler};
 use swc_common::{FileName, FilePathMapping, SourceMap};
 use swc_ecma_parser::Syntax;
 use swc_ecma_parser::{EsConfig, TsConfig};
-use tracing::instrument;
+
 
 static SWC_COMPILER: Lazy<Arc<SwcCompiler>> = Lazy::new(|| {
   let cm = Arc::new(SourceMap::new(FilePathMapping::empty()));

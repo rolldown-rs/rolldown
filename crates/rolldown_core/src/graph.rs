@@ -1,11 +1,11 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
+    Arc,
 };
 
 use crate::{
-    get_swc_compiler, ufriend::UFriend, JobContext, LoadArgs, Module, NormalizedInputOptions,
-    Plugin, PluginDriver, ResolveArgs, ResolvedId, ResolvingModuleJob, SideEffect,
+    get_swc_compiler, ufriend::UFriend, JobContext, Module, NormalizedInputOptions,
+    Plugin, PluginDriver, ResolvedId, ResolvingModuleJob, SideEffect,
 };
 use ast::Id;
 use dashmap::DashSet;

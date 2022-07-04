@@ -1,18 +1,18 @@
 use hashbrown::HashMap;
-use std::sync::Mutex;
+
 use swc_common::Mark;
 
-use crate::{get_swc_compiler, ClearMark, ExportRemover, Graph, NormalizedInputOptions, Renamer};
-use crate::{shake, ufriend::UFriend, Module, ModuleById};
-use ast::{EsVersion, Id, ModuleDecl, ModuleItem, Str};
+use crate::{get_swc_compiler, ExportRemover, Graph, NormalizedInputOptions, Renamer};
+use crate::{ufriend::UFriend, Module, ModuleById};
+use ast::{Id, ModuleDecl, ModuleItem};
 use hashbrown::HashSet;
-use petgraph::unionfind::UnionFind;
+
 use rayon::prelude::*;
 use std::fmt::Debug;
-use swc::config::{self as swc_config, SourceMapsConfig};
+
 use swc_atoms::JsWord;
-use swc_common::{util::take::Take, FileName};
-use swc_ecma_transforms::{hygiene, pass::noop, react};
+use swc_common::{util::take::Take};
+
 use swc_ecma_visit::{FoldWith, VisitMutWith};
 use tracing::instrument;
 
@@ -111,7 +111,7 @@ impl Chunk {
         ordered
     }
 
-    pub fn render(&self, graph: &Graph, input_options: &NormalizedInputOptions) -> String {
+    pub fn render(&self, graph: &Graph, _input_options: &NormalizedInputOptions) -> String {
         self.ordered_modules(&graph.module_by_id)
             .iter()
             .map(|module| module.render())
