@@ -27,7 +27,8 @@ pub struct Module {
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
     pub resolved_module_ids: HashMap<JsWord, ResolvedId>,
-    pub declared_ids: HashSet<Id>,
+    // Declared vars in lolcal scope. This is not include vars that imported from other modules.
+    pub local_binded_ids: HashSet<Id>,
     pub included: bool,
     pub used_exported_id: HashSet<Id>,
     pub suggested_names: HashMap<JsWord, JsWord>,
@@ -190,7 +191,7 @@ impl Module {
                 uf.add_key(id.clone());
                 uf.union(&id, self.merged_exports.get(&"*".into()).unwrap());
                 // TODO: check if the name is used in the module
-                self.declared_ids.insert(id.clone());
+                self.local_binded_ids.insert(id.clone());
                 self.gen_namespace_export(id)
             });
             self.ast
@@ -221,7 +222,7 @@ impl Module {
                 uf.add_key(id.clone());
                 uf.union(&id, default_exported_id);
                 // TODO: check if the name is used in the module
-                self.declared_ids.insert(id.clone());
+                self.local_binded_ids.insert(id.clone());
                 self.ast
                     .as_mut_module()
                     .unwrap()
@@ -339,7 +340,7 @@ impl Debug for Module {
             .field("merged_exports", &self.merged_exports)
             .field("side_effect", &self.side_effect)
             .field("resolved_module_ids", &self.resolved_module_ids)
-            .field("declared_ids", &self.declared_ids)
+            .field("declared_ids", &self.local_binded_ids)
             .field("included", &self.included)
             .field("used_exported_id", &self.used_exported_id)
             .field("suggested_names", &self.suggested_names)

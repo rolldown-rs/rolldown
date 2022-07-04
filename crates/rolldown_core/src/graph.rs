@@ -229,7 +229,7 @@ impl Graph {
         };
         self.module_by_id.values().for_each(|module| {
             module
-                .declared_ids
+                .local_binded_ids
                 .iter()
                 .for_each(|id| self.uf.add_key(id.clone()));
 
