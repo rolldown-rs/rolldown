@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use std::fmt::Debug;
 
 use swc_atoms::JsWord;
-use swc_common::{util::take::Take};
+use swc_common::util::take::Take;
 
 use swc_ecma_visit::{FoldWith, VisitMutWith};
 use tracing::instrument;
@@ -39,15 +39,15 @@ impl Chunk {
     }
 
     fn generate_exports(&self, ctx: &mut PrepareContext) {
-      ctx.modules.par_values_mut().for_each(|module| {
-        module.generate_namespace_export(ctx.uf);
-        get_swc_compiler().run(|| {
-          module.shim_default_export_expr(ctx.uf);
+        ctx.modules.par_values_mut().for_each(|module| {
+            module.generate_namespace_export(ctx.uf);
+            get_swc_compiler().run(|| {
+                module.shim_default_export_expr(ctx.uf);
+            });
+            if let ast::Program::Module(ast_module) = &mut module.ast {
+                ast_module.visit_mut_with(&mut ExportRemover);
+            }
         });
-        if let ast::Program::Module(ast_module) = &mut module.ast {
-          *ast_module = ast_module.take().fold_with(&mut ExportRemover);
-        }
-      });
         let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
         entry_module.generate_exports();
     }
@@ -94,7 +94,6 @@ impl Chunk {
                 !matches!(module_item, ModuleItem::ModuleDecl(ModuleDecl::Import(_)))
             });
             ast.visit_mut_with(&mut renamer);
-
         });
 
         tracing::debug!("id_to_name {:#?}", id_to_name);

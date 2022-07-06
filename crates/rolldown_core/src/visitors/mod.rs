@@ -13,6 +13,8 @@ mod export_remover;
 pub use export_remover::*;
 mod renamer;
 pub use renamer::*;
+mod shaker;
+pub use shaker::*;
 
 use crate::{
     side_effect_of_module_item, LocalExports,
