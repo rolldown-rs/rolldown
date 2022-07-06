@@ -119,6 +119,7 @@ impl VisitMut for ExportRemover {
                     }))]
                 }
                 ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(_)) => vec![],
+                ModuleItem::ModuleDecl(ModuleDecl::ExportAll(_)) => vec![],
                 _ => vec![module_item],
             })
             .collect()

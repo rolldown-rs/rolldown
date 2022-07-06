@@ -185,7 +185,18 @@ impl Module {
     pub fn generate_namespace_export(&mut self, uf: &UFriend<Id>) {
         if self.merged_exports.contains_key(&"*".into()) {
             let namespace_export = get_swc_compiler().run(|| {
-                let suggest_name = self.suggested_names.get(&"*".into()).unwrap();
+                let suggest_name = self
+                    .suggested_names
+                    .get(&"*".into())
+                    .map(|s| s.clone())
+                    .unwrap_or_else(|| {
+                        (Path::new(&self.id.to_string())
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap()
+                            + "_namespace")
+                            .into()
+                    });
                 let suggest_name = make_legal(&suggest_name);
                 let id =
                     quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();

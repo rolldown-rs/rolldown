@@ -1,6 +1,6 @@
 use ast::{
-    BindingIdent, CallExpr, Callee, ExportSpecifier, Expr, Id, Ident,
-    ImportDecl, Lit, ModuleDecl, ModuleItem, Stmt,
+    BindingIdent, CallExpr, Callee, ExportSpecifier, Expr, Id, Ident, ImportDecl, Lit, ModuleDecl,
+    ModuleItem, Stmt,
 };
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
@@ -16,10 +16,7 @@ pub use renamer::*;
 mod shaker;
 pub use shaker::*;
 
-use crate::{
-    side_effect_of_module_item, LocalExports,
-    MergedExports, SideEffect,
-};
+use crate::{side_effect_of_module_item, LocalExports, MergedExports, SideEffect};
 
 #[derive(Default)]
 pub struct Scanner {
@@ -208,6 +205,15 @@ impl Scanner {
             },
             ModuleDecl::ExportAll(node) => {
                 // export * from './other'
+                let source = node.src.value.clone();
+
+                self.re_exports
+                    .entry(source.clone())
+                    .or_default()
+                    .insert(Specifier {
+                        alias: "*".into(),
+                        orginal: "*".into(),
+                    });
                 self.add_dependency(node.src.value.clone());
             }
             _ => {}

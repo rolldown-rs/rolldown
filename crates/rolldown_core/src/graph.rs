@@ -4,8 +4,8 @@ use std::sync::{
 };
 
 use crate::{
-    get_swc_compiler, ufriend::UFriend, JobContext, Module, NormalizedInputOptions,
-    Plugin, PluginDriver, ResolvedId, ResolvingModuleJob, SideEffect,
+    get_swc_compiler, ufriend::UFriend, JobContext, Module, NormalizedInputOptions, Plugin,
+    PluginDriver, ResolvedId, ResolvingModuleJob, SideEffect,
 };
 use ast::Id;
 use dashmap::DashSet;
@@ -152,14 +152,20 @@ impl Graph {
                         self.module_by_id.get_mut(&re_exported_module_id).unwrap();
                     re_exported_specifier
                         .iter()
-                        .map(|spec| {
-                            assert_ne!(&spec.orginal, "*");
-                            let original_id = re_exported_module
-                                .merged_exports
-                                .get(&spec.orginal)
-                                .unwrap()
-                                .clone();
-                            (spec.alias.clone(), original_id.clone())
+                        .flat_map(|spec| {
+                            if &spec.alias == "*" {
+                                re_exported_module
+                                    .merged_exports
+                                    .clone()
+                                    .into_iter()
+                                    .collect()
+                            } else {
+                                let original_id = re_exported_module
+                                    .get_exported(&spec.orginal)
+                                    .unwrap_or_else(|| panic!("original_id not found: {:?}", spec))
+                                    .clone();
+                                vec![(spec.alias.clone(), original_id.clone())]
+                            }
                         })
                         .collect::<Vec<_>>()
                 })
@@ -252,6 +258,12 @@ impl Graph {
                 .merged_exports
                 .values()
                 .for_each(|id| self.uf.add_key(id.clone()));
+            // module
+            //     .re_exports
+            //     .values()
+            //     .flatten()
+            //     .flat_map(|spec| [&spec.alias, &spec.orginal])
+            //     .for_each(|id| self.uf.add_key(id.clone()));
         });
 
         self.link_exports(&order_modules);
