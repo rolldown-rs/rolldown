@@ -9,6 +9,7 @@ use hashbrown::HashSet;
 
 use rayon::prelude::*;
 use std::fmt::Debug;
+use std::sync::Mutex;
 
 use swc_atoms::JsWord;
 use swc_common::util::take::Take;
@@ -39,15 +40,6 @@ impl Chunk {
     }
 
     fn generate_exports(&self, ctx: &mut PrepareContext) {
-        ctx.modules.par_values_mut().for_each(|module| {
-            module.generate_namespace_export(ctx.uf);
-            get_swc_compiler().run(|| {
-                module.shim_default_export_expr(ctx.uf);
-            });
-            if let ast::Program::Module(ast_module) = &mut module.ast {
-                ast_module.visit_mut_with(&mut ExportRemover);
-            }
-        });
         let entry_module = ctx.modules.get_mut(&self.entry_module_id).unwrap();
         entry_module.generate_exports();
     }

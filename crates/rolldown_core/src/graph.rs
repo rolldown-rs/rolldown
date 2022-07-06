@@ -1,17 +1,19 @@
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 
 use crate::{
-    get_swc_compiler, ufriend::UFriend, JobContext, Module, NormalizedInputOptions, Plugin,
-    PluginDriver, ResolvedId, ResolvingModuleJob, SideEffect,
+    get_swc_compiler, ufriend::UFriend, ExportRemover, JobContext, Module, NormalizedInputOptions,
+    Plugin, PluginDriver, ResolvedId, ResolvingModuleJob, SideEffect,
 };
 use ast::Id;
 use dashmap::DashSet;
 use hashbrown::{HashMap, HashSet};
+use rayon::iter::ParallelIterator;
 use swc_atoms::JsWord;
 use swc_common::Mark;
+use swc_ecma_visit::VisitMutWith;
 use tokio::sync::RwLock;
 
 #[derive(Debug)]
@@ -153,7 +155,7 @@ impl Graph {
                     re_exported_specifier
                         .iter()
                         .flat_map(|spec| {
-                            if &spec.alias == "*" {
+                            if &spec.alias.0 == "*" {
                                 re_exported_module
                                     .merged_exports
                                     .clone()
@@ -161,10 +163,10 @@ impl Graph {
                                     .collect()
                             } else {
                                 let original_id = re_exported_module
-                                    .get_exported(&spec.orginal)
+                                    .get_exported(&spec.original, &mut self.uf)
                                     .unwrap_or_else(|| panic!("original_id not found: {:?}", spec))
                                     .clone();
-                                vec![(spec.alias.clone(), original_id.clone())]
+                                vec![(spec.alias.0.clone(), original_id.clone())]
                             }
                         })
                         .collect::<Vec<_>>()
@@ -208,7 +210,7 @@ impl Graph {
                     let imported_module = self.module_by_id.get_mut(&imported_module_id).unwrap();
                     imported_specifier.iter().for_each(|spec| {
                         let original_id = imported_module
-                            .get_exported(&spec.original)
+                            .get_exported(&spec.original, &mut self.uf)
                             .unwrap_or_else(|| {
                                 panic!(
                                     "module {} has no export {}",
@@ -242,29 +244,6 @@ impl Graph {
             modules.sort_by_key(|id| self.module_by_id[id].exec_order);
             modules
         };
-        self.module_by_id.values().for_each(|module| {
-            module
-                .local_binded_ids
-                .values()
-                .for_each(|id| self.uf.add_key(id.clone()));
-
-            module
-                .imports
-                .values()
-                .flat_map(|specs| specs.iter())
-                .map(|spec| &spec.alias)
-                .for_each(|id| self.uf.add_key(id.clone()));
-            module
-                .merged_exports
-                .values()
-                .for_each(|id| self.uf.add_key(id.clone()));
-            // module
-            //     .re_exports
-            //     .values()
-            //     .flatten()
-            //     .flat_map(|spec| [&spec.alias, &spec.orginal])
-            //     .for_each(|id| self.uf.add_key(id.clone()));
-        });
 
         self.link_exports(&order_modules);
         self.link_imports(&order_modules);
@@ -306,6 +285,24 @@ impl Graph {
         });
     }
 
+    pub fn generate_exports(&mut self) {
+        let uf = Mutex::new(&mut self.uf);
+        self.module_by_id.par_values_mut().for_each(|module| {
+            get_swc_compiler().run(|| {
+                module.generate_namespace_export(&uf);
+                module.shim_default_export_expr(&uf);
+                module.ast.visit_mut_with(&mut ExportRemover);
+            });
+        });
+        // module.generate_namespace_export(ctx.uf);
+        //       get_swc_compiler().run(|| {
+        //           module.shim_default_export_expr(ctx.uf);
+        //       });
+        // if let ast::Program::Module(ast_module) = &mut module.ast {
+        //     ast_module.visit_mut_with(&mut ExportRemover);
+        // }
+    }
+
     async fn build_graph(&mut self) -> anyhow::Result<()> {
         let active_task_count: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 
@@ -341,6 +338,29 @@ impl Graph {
                 Some(job) => match job {
                     Msg::TaskFinished(module) => {
                         active_task_count.fetch_sub(1, Ordering::SeqCst);
+                        module
+                            .local_exports
+                            .values()
+                            .cloned()
+                            .chain(
+                                module
+                                    .imports
+                                    .values()
+                                    .flatten()
+                                    .map(|spec| &spec.alias)
+                                    .cloned(),
+                            )
+                            .chain(
+                                module
+                                    .re_exports
+                                    .values()
+                                    .flatten()
+                                    .map(|spec| &spec.alias)
+                                    .cloned(),
+                            )
+                            .for_each(|id| {
+                                self.uf.add_key(id.clone());
+                            });
                         self.add_module(*module);
                     }
                     Msg::TaskCanceled => {
@@ -388,6 +408,7 @@ impl Graph {
         self.build_graph().await?;
         self.sort_modules();
         self.link();
+        self.generate_exports();
         self.include_statement();
         Ok(())
     }

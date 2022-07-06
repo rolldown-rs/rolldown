@@ -34,8 +34,8 @@ impl<'a> Bundle<'a> {
                 .iter()
                 .map(|chunk| {
                     let prepare_context = PrepareContext {
+                      uf: &self.graph.uf,
                         unresolved_mark: self.graph.unresolved_mark,
-                        uf: &self.graph.uf,
                         modules: chunk
                             .module_ids
                             .iter()

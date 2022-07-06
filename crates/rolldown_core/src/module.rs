@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::Path};
+use std::{fmt::Debug, path::Path, sync::Mutex};
 
 use ast::{Id, Ident, ModuleItem};
 use hashbrown::{HashMap, HashSet};
@@ -10,7 +10,7 @@ use swc_ecma_utils::quote_ident;
 
 use crate::{
     get_swc_compiler, make_legal, ufriend::UFriend, LocalExports, MergedExports, ModuleById,
-    ResolvedId, SideEffect, Specifier, SpecifierId,
+    ResolvedId, SideEffect, SpecifierId,
 };
 
 pub struct Module {
@@ -22,7 +22,7 @@ pub struct Module {
     pub ast: ast::Program,
     pub top_level_mark: Mark,
     pub imports: HashMap<JsWord, HashSet<SpecifierId>>,
-    pub re_exports: HashMap<JsWord, HashSet<Specifier>>,
+    pub re_exports: HashMap<JsWord, HashSet<SpecifierId>>,
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
@@ -56,12 +56,12 @@ impl Module {
             .collect()
     }
 
-    pub fn get_exported(&mut self, name: &JsWord) -> Option<&Id> {
+    pub fn get_exported(&mut self, name: &JsWord, uf: &mut UFriend<Id>) -> Option<&Id> {
         if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
             get_swc_compiler().run(|| {
                 self.merged_exports.insert(
                     "*".into(),
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+                    uf.new_id("*".into()),
                 );
             });
         };
@@ -182,7 +182,7 @@ impl Module {
         }
     }
 
-    pub fn generate_namespace_export(&mut self, uf: &UFriend<Id>) {
+    pub fn generate_namespace_export(&mut self, uf: &Mutex<&mut UFriend<Id>>) {
         if self.merged_exports.contains_key(&"*".into()) {
             let namespace_export = get_swc_compiler().run(|| {
                 let suggest_name = self
@@ -198,10 +198,10 @@ impl Module {
                             .into()
                     });
                 let suggest_name = make_legal(&suggest_name);
-                let id =
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
-                uf.add_key(id.clone());
-                uf.union(&id, self.merged_exports.get(&"*".into()).unwrap());
+                let id = uf.lock().unwrap().new_id(suggest_name.into());
+                uf.lock()
+                    .unwrap()
+                    .union(&id, self.merged_exports.get(&"*".into()).unwrap());
                 // TODO: check if the name is used in the module
                 self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.gen_namespace_export(id)
@@ -214,7 +214,7 @@ impl Module {
         }
     }
 
-    pub fn shim_default_export_expr(&mut self, uf: &UFriend<Id>) {
+    pub fn shim_default_export_expr(&mut self, uf: &Mutex<&mut UFriend<Id>>) {
         if let Some(default_exported_id) = self.local_exports.get(&"default".into()) {
             let has_name = &default_exported_id.0 != "default";
             if !has_name {
@@ -230,10 +230,8 @@ impl Module {
                             .into()
                     });
                 let suggest_name = make_legal(&suggest_name);
-                let id =
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), suggest_name.clone()).to_id();
-                uf.add_key(id.clone());
-                uf.union(&id, default_exported_id);
+                let id = uf.lock().unwrap().new_id(suggest_name.into());
+                uf.lock().unwrap().union(&id, default_exported_id);
                 // TODO: check if the name is used in the module
                 self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.ast

@@ -5,7 +5,7 @@ use ast::{
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common::{self, Mark, DUMMY_SP};
+use swc_common::{self, Mark, DUMMY_SP, SyntaxContext};
 
 use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::{noop_visit_mut_type, Visit, VisitMut, VisitMutWith, VisitWith};
@@ -23,7 +23,7 @@ pub struct Scanner {
     pub dependencies: LinkedHashSet<JsWord>,
     pub dyn_dependencies: HashSet<JsWord>,
     pub imports: HashMap<JsWord, HashSet<SpecifierId>>,
-    pub re_exports: HashMap<JsWord, HashSet<Specifier>>,
+    pub re_exports: HashMap<JsWord, HashSet<SpecifierId>>,
     pub local_exports: LocalExports,
     pub merged_exports: MergedExports,
     pub side_effect: Option<SideEffect>,
@@ -103,11 +103,11 @@ impl Scanner {
                                 let alias = s
                                     .exported
                                     .as_ref()
-                                    .map(|name| ident_of_module_export_name(name).sym.clone());
-                                let orginal = ident_of_module_export_name(&s.orig).sym.clone();
-                                re_exports.insert(Specifier {
+                                    .map(|name| ident_of_module_export_name(name).to_id());
+                                let orginal = ident_of_module_export_name(&s.orig).to_id();
+                                re_exports.insert(SpecifierId {
                                     alias: alias.unwrap_or_else(|| orginal.clone()),
-                                    orginal,
+                                    original: orginal.0.clone(),
                                 });
                             } else {
                                 // export { name }
@@ -122,9 +122,9 @@ impl Scanner {
                             self.re_exports
                                 .entry(source)
                                 .or_default()
-                                .insert(Specifier {
-                                    alias: ident_of_module_export_name(&s.name).sym.clone(),
-                                    orginal: "*".into(),
+                                .insert(SpecifierId {
+                                    alias: ident_of_module_export_name(&s.name).to_id(),
+                                    original: "*".into(),
                                 });
                         }
                         ExportSpecifier::Default(_) => {
@@ -210,9 +210,9 @@ impl Scanner {
                 self.re_exports
                     .entry(source.clone())
                     .or_default()
-                    .insert(Specifier {
-                        alias: "*".into(),
-                        orginal: "*".into(),
+                    .insert(SpecifierId {
+                        alias: ("*".into(), SyntaxContext::empty()),
+                        original: "*".into(),
                     });
                 self.add_dependency(node.src.value.clone());
             }
@@ -289,12 +289,12 @@ impl VisitMut for Scanner {
     // }
 }
 
-// pub type Specifier = ast::ImportSpecifier;
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Specifier {
-    pub alias: JsWord,
-    pub orginal: JsWord,
-}
+// // pub type Specifier = ast::ImportSpecifier;
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub struct Specifier {
+//     pub alias: JsWord,
+//     pub orginal: JsWord,
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpecifierId {

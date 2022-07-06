@@ -1,4 +1,5 @@
 #![feature(iter_intersperse)]
+#![feature(box_patterns)]
 
 mod options;
 use ast::Id;

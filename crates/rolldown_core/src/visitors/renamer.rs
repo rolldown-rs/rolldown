@@ -1,9 +1,7 @@
-
-
-use ast::{ExportNamedSpecifier, Id, Ident, ObjectLit};
+use ast::{ExportNamedSpecifier, Id, Ident, ObjectLit, PropName};
 use hashbrown::HashMap;
 use swc_atoms::JsWord;
-use swc_common::{SyntaxContext, DUMMY_SP};
+use swc_common::{util::take::Take, SyntaxContext, DUMMY_SP};
 use swc_ecma_visit::{VisitMut, VisitMutWith};
 
 use crate::ufriend::UFriend;
@@ -54,6 +52,22 @@ impl<'a> VisitMut for Renamer<'a> {
             }
         });
         node.visit_mut_children_with(self);
+        node.props.iter_mut().for_each(|prop_or_spread| {
+            if let ast::PropOrSpread::Prop(prop) = prop_or_spread {
+                if let ast::Prop::KeyValue(key_value) = prop.as_mut() {
+                    if let PropName::Ident(prop_ident) = &mut key_value.key {
+                        if let box ast::Expr::Ident(value_ident) = &mut key_value.value {
+                            let could_be_shorthand = value_ident.sym == prop_ident.sym;
+                            if could_be_shorthand {
+                                let replacement =
+                                    Box::new(ast::Prop::Shorthand(value_ident.take()));
+                                *prop = replacement;
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     fn visit_mut_export_named_specifier(&mut self, node: &mut ExportNamedSpecifier) {

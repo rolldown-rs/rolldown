@@ -10,5 +10,40 @@ const { a: _a1 , b: _b1  } = obj;
 const { a: _a3 = aDefault , _b3 =bDefault  } = obj;
 const { _a4 , _b4 , ..._rest4 } = obj;
 const { a: _a5 , b: _b5 , ..._rest5 } = obj;
+var foo_namespace = Object.freeze({
+    __proto__: null,
+    _a,
+    _a1,
+    _a3,
+    _a4,
+    _a5,
+    _b,
+    _b1,
+    _b3,
+    _b4,
+    _b5,
+    _rest4,
+    _rest5,
+    a,
+    a1,
+    a3,
+    a4,
+    a5,
+    a6,
+    a7,
+    b,
+    b2,
+    b3,
+    b4,
+    b5,
+    b6,
+    b7,
+    c7,
+    d7,
+    pop,
+    push,
+    rest4,
+    rest5
+});
 
-export { _a, _a1, _a3, _a4, _a5, _b, _b1, _b3, _b4, _b5, _rest4, _rest5, a, a1, a3, a4, a5, a6, a7, b, b2, b3, b4, b5, b6, b7, c7, d7, pop, push, rest4, rest5 };
+export { foo_namespace as fooNamespace };
