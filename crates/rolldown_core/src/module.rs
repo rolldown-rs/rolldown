@@ -3,14 +3,19 @@ use std::{fmt::Debug, path::Path, sync::Mutex};
 use ast::{Id, Ident, ModuleItem};
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
+use sugar_path::PathSugar;
 use swc_atoms::JsWord;
-use swc_common::{util::take::Take, Mark, DUMMY_SP};
+use swc_common::{
+    comments::{Comment, Comments, SingleThreadedComments},
+    util::take::Take,
+    Mark, Spanned, DUMMY_SP,
+};
 use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_utils::quote_ident;
 
 use crate::{
     get_swc_compiler, make_legal, ufriend::UFriend, LocalExports, MergedExports, ModuleById,
-    ResolvedId, SideEffect, SpecifierId,
+    NormalizedInputOptions, ResolvedId, SideEffect, SpecifierId,
 };
 
 pub struct Module {
@@ -33,6 +38,9 @@ pub struct Module {
     pub used_exported_id: HashSet<Id>,
     pub suggested_names: HashMap<JsWord, JsWord>,
     pub is_user_defined_entry: bool,
+
+    pub has_generated_exports: bool,
+    pub has_generated_namespace_exports: bool,
 }
 
 impl Module {
@@ -59,10 +67,8 @@ impl Module {
     pub fn get_exported(&mut self, name: &JsWord, uf: &mut UFriend<Id>) -> Option<&Id> {
         if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
             get_swc_compiler().run(|| {
-                self.merged_exports.insert(
-                    "*".into(),
-                    uf.new_id("*".into()),
-                );
+                self.merged_exports
+                    .insert("*".into(), uf.new_id("*".into()));
             });
         };
         self.merged_exports.get(name)
@@ -176,29 +182,44 @@ impl Module {
     }
 
     pub fn generate_exports(&mut self) {
-        if !self.merged_exports.is_empty() {
+        if !self.merged_exports.is_empty() && !self.has_generated_exports {
+            self.has_generated_exports = true;
             let exports = self.gen_export();
             self.ast.as_mut_module().map(|ast| ast.body.push(exports));
         }
     }
 
+    pub fn declared_a_new_name(&mut self, name_hint: &JsWord) -> JsWord {
+        let mut name = name_hint.clone();
+        let mut i = 0;
+        while self.local_binded_ids.contains_key(&name) {
+            i += 1;
+            name = format!("{}${}", name_hint, i).into();
+        }
+        name
+    }
+
     pub fn generate_namespace_export(&mut self, uf: &Mutex<&mut UFriend<Id>>) {
-        if self.merged_exports.contains_key(&"*".into()) {
+        if self.merged_exports.contains_key(&"*".into()) && !self.has_generated_namespace_exports {
+            self.has_generated_namespace_exports = true;
             let namespace_export = get_swc_compiler().run(|| {
-                let suggest_name = self
-                    .suggested_names
-                    .get(&"*".into())
-                    .map(|s| s.clone())
-                    .unwrap_or_else(|| {
-                        (Path::new(&self.id.to_string())
-                            .file_stem()
-                            .map(|s| s.to_string_lossy().to_string())
-                            .unwrap()
-                            + "_namespace")
+                let final_name = {
+                    let suggest_name = self
+                        .suggested_names
+                        .get(&"*".into())
+                        .map(|s| s.clone())
+                        .unwrap_or_else(|| {
+                            (Path::new(&self.id.to_string())
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap())
                             .into()
-                    });
-                let suggest_name = make_legal(&suggest_name);
-                let id = uf.lock().unwrap().new_id(suggest_name.into());
+                        });
+                    let suggest_name = make_legal(&suggest_name);
+                    self.declared_a_new_name(&suggest_name.into())
+                };
+
+                let id = uf.lock().unwrap().new_id(final_name);
                 uf.lock()
                     .unwrap()
                     .union(&id, self.merged_exports.get(&"*".into()).unwrap());
@@ -215,23 +236,29 @@ impl Module {
     }
 
     pub fn shim_default_export_expr(&mut self, uf: &Mutex<&mut UFriend<Id>>) {
-        if let Some(default_exported_id) = self.local_exports.get(&"default".into()) {
+        if let Some(default_exported_id) =
+            self.local_exports.get(&"default".into()).map(|s| s.clone())
+        {
             let has_name = &default_exported_id.0 != "default";
             if !has_name {
-                let suggest_name = self
-                    .suggested_names
-                    .get(&"default".into())
-                    .map(|s| s.clone())
-                    .unwrap_or_else(|| {
-                        Path::new(&self.id.to_string())
-                            .file_stem()
-                            .map(|s| s.to_string_lossy().to_string())
-                            .unwrap()
-                            .into()
-                    });
-                let suggest_name = make_legal(&suggest_name);
-                let id = uf.lock().unwrap().new_id(suggest_name.into());
-                uf.lock().unwrap().union(&id, default_exported_id);
+                let final_name = {
+                    let suggest_name = self
+                        .suggested_names
+                        .get(&"default".into())
+                        .map(|s| s.clone())
+                        .unwrap_or_else(|| {
+                            Path::new(&self.id.to_string())
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap()
+                                .into()
+                        });
+                    let suggest_name = make_legal(&suggest_name);
+                    self.declared_a_new_name(&suggest_name.into())
+                };
+
+                let id = uf.lock().unwrap().new_id(final_name.into());
+                uf.lock().unwrap().union(&id, &default_exported_id);
                 // TODO: check if the name is used in the module
                 self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.ast
@@ -278,13 +305,40 @@ impl Module {
         }
     }
 
-    pub fn render(&self) -> String {
+    pub fn render(&self, options: &NormalizedInputOptions) -> String {
+        let comments = SingleThreadedComments::default();
+
+        let mut text = String::new();
+        text.push(' ');
+        text.push_str(
+            &Path::new(&self.id.to_string())
+                .relative(&options.root)
+                .to_string_lossy(),
+        );
+        comments.add_leading(
+            match &self.ast {
+                ast::Program::Module(node) => match &node.body[0] {
+                    ModuleItem::ModuleDecl(node) => node.span().lo,
+                    ModuleItem::Stmt(node) => node.span().lo,
+                },
+                ast::Program::Script(node) => node.span.lo(),
+            },
+            Comment {
+                kind: swc_common::comments::CommentKind::Line,
+                span: match &self.ast {
+                    ast::Program::Module(node) => node.span.clone(),
+                    ast::Program::Script(node) => node.span.clone(),
+                },
+                text,
+            },
+        );
+
         let mut output = Vec::new();
 
         let mut emitter = swc_ecma_codegen::Emitter {
             cfg: Default::default(),
             cm: get_swc_compiler().cm.clone(),
-            comments: None,
+            comments: Some(&comments),
             wr: Box::new(JsWriter::new(
                 get_swc_compiler().cm.clone(),
                 "\n",
@@ -319,6 +373,7 @@ impl Module {
             span: Default::default(),
             specifiers: exports
                 .into_iter()
+                .filter(|(name, _)| name != &"*")
                 .map(|(name, id)| {
                     ExportSpecifier::Named(ExportNamedSpecifier {
                         span: Default::default(),

@@ -1,1 +1,0 @@
-export * as fooNamespace from './foo'

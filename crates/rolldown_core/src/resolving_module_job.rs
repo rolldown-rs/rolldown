@@ -161,6 +161,8 @@ impl ResolvingModuleJob {
                 .collect(),
             suggested_names: Default::default(),
             is_user_defined_entry: self.is_entry,
+            has_generated_exports: false,
+            has_generated_namespace_exports: false,
             // used_exports: Default::default(),
         };
 

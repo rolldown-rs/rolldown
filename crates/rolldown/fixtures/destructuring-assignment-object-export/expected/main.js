@@ -1,3 +1,4 @@
+// index.js
 const { a , b  } = obj;
 const { a: a1 , b: b1  } = obj;
 const { a: a3 = aDefault , b3 =bDefault  } = obj;

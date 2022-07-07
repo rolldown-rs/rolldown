@@ -102,10 +102,10 @@ impl Chunk {
         ordered
     }
 
-    pub fn render(&self, graph: &Graph, _input_options: &NormalizedInputOptions) -> String {
+    pub fn render(&self, graph: &Graph, input_options: &NormalizedInputOptions) -> String {
         self.ordered_modules(&graph.module_by_id)
             .iter()
-            .map(|module| module.render())
+            .map(|module| module.render(input_options))
             .collect::<Vec<_>>()
             .join("\n")
     }

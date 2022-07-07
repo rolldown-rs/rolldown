@@ -4,4 +4,5 @@ var namespaceFoo = Object.freeze({
     "default": foo
 });
 
+// index.js
 console.log(namespaceFoo);

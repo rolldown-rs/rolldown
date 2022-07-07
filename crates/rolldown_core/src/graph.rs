@@ -155,11 +155,20 @@ impl Graph {
                     re_exported_specifier
                         .iter()
                         .flat_map(|spec| {
+                            if &spec.original == "default" || &spec.original == "*" {
+                                // There is only one case where `specifier.used` is not a valid varible name.
+                                // Special case ` export { default } from ...`
+                                if &spec.alias.0 != "default" {
+                                    re_exported_module
+                                        .suggest_name(spec.original.clone(), spec.alias.0.clone());
+                                }
+                            }
                             if &spec.alias.0 == "*" {
                                 re_exported_module
                                     .merged_exports
                                     .clone()
                                     .into_iter()
+                                    .filter(|(name, _)| name != "default")
                                     .collect()
                             } else {
                                 let original_id = re_exported_module
@@ -289,8 +298,8 @@ impl Graph {
         let uf = Mutex::new(&mut self.uf);
         self.module_by_id.par_values_mut().for_each(|module| {
             get_swc_compiler().run(|| {
-                module.generate_namespace_export(&uf);
                 module.shim_default_export_expr(&uf);
+                module.generate_namespace_export(&uf);
                 module.ast.visit_mut_with(&mut ExportRemover);
             });
         });

@@ -1,3 +1,4 @@
+// index.js
 const [a, b] = array;
 const [a1, , b2] = array;
 const [a3 = aDefault, b3] = array;
