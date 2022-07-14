@@ -146,47 +146,59 @@ impl Graph {
                     )
                 })
                 .collect::<Vec<_>>();
-            std::mem::drop(cur_module);
             re_exports
                 .into_iter()
                 .map(|(re_exported_module_id, re_exported_specifier)| {
                     let re_exported_module =
                         self.module_by_id.get_mut(&re_exported_module_id).unwrap();
-                    re_exported_specifier
-                        .iter()
-                        .flat_map(|spec| {
-                            if &spec.original == "default" || &spec.original == "*" {
-                                // There is only one case where `specifier.used` is not a valid varible name.
-                                // Special case ` export { default } from ...`
-                                // Special case ` export * from ...`
-                                if &spec.alias.0 != "default" && &spec.alias.0 != "*" {
-                                    re_exported_module
-                                        .suggest_name(spec.original.clone(), spec.alias.0.clone());
+                    (
+                        re_exported_specifier
+                            .iter()
+                            .flat_map(|spec| {
+                                if &spec.original == "default" || &spec.original == "*" {
+                                    // There is only one case where `specifier.used` is not a valid varible name.
+                                    // Special case ` export { default } from ...`
+                                    // Special case ` export * from ...`
+                                    if &spec.alias.0 != "default" && &spec.alias.0 != "*" {
+                                        re_exported_module.suggest_name(
+                                            spec.original.clone(),
+                                            spec.alias.0.clone(),
+                                        );
+                                    }
                                 }
-                            }
-                            if &spec.alias.0 == "*" {
-                                re_exported_module
-                                    .merged_exports
-                                    .clone()
-                                    .into_iter()
-                                    .filter(|(name, _)| name != "default" && name != "*")
-                                    .collect()
-                            } else {
-                                let original_id = re_exported_module
-                                    .get_exported(&spec.original, &mut self.uf)
-                                    .unwrap_or_else(|| panic!("original_id not found: {:?}", spec))
-                                    .clone();
-                                vec![(spec.alias.0.clone(), original_id.clone())]
-                            }
-                        })
-                        .collect::<Vec<_>>()
+                                if &spec.alias.0 == "*" {
+                                    re_exported_module
+                                        .merged_exports
+                                        .clone()
+                                        .into_iter()
+                                        .filter(|(name, _)| name != "default" && name != "*")
+                                        .collect()
+                                } else {
+                                    let original_id = re_exported_module
+                                        .get_exported(&spec.original, &mut self.uf)
+                                        .unwrap_or_else(|| {
+                                            panic!("original_id not found: {:?}", spec)
+                                        })
+                                        .clone();
+                                    vec![(spec.alias.0.clone(), original_id.clone())]
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                        re_exported_module.id.clone(),
+                    )
                 })
                 .collect::<Vec<_>>()
                 .into_iter()
-                .for_each(|ids| {
+                .for_each(|(ids, source_module_id)| {
                     let module = self.module_by_id.get_mut(&module_id).unwrap();
                     ids.into_iter().for_each(|(alias, id)| {
-                        assert!(!module.merged_exports.contains_key(&alias), "{}", id.0);
+                        assert!(
+                            !module.merged_exports.contains_key(&alias),
+                            "already export `{}` for {:?} source_module_id: {:?}",
+                            id.0,
+                            module.id,
+                            source_module_id
+                        );
                         module.merged_exports.insert(alias, id);
                     });
                 });
