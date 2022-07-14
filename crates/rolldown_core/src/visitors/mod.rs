@@ -5,7 +5,7 @@ use ast::{
 use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use swc_atoms::JsWord;
-use swc_common::{self, Mark, DUMMY_SP, SyntaxContext};
+use swc_common::{self, Mark, SyntaxContext, DUMMY_SP};
 
 use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::{noop_visit_mut_type, Visit, VisitMut, VisitMutWith, VisitWith};
@@ -110,9 +110,14 @@ impl Scanner {
                                     original: orginal.0.clone(),
                                 });
                             } else {
+                                let local_ident = ident_of_module_export_name(&s.orig);
+                                let alias = s
+                                    .exported
+                                    .as_ref()
+                                    .map(|name| ident_of_module_export_name(name).to_id())
+                                    .unwrap_or(local_ident.clone().to_id());
                                 // export { name }
-                                let ident = ident_of_module_export_name(&s.orig);
-                                self.local_exports.insert(ident.sym.clone(), ident.to_id());
+                                self.local_exports.insert(alias.0, local_ident.to_id());
                             }
                         }
                         ExportSpecifier::Namespace(s) => {

@@ -1,19 +1,11 @@
-// a.js
-const a = 'a.js';
-var a$1 = 'default a.js';
-var a$2 = Object.freeze({
+// foo.js
+const foo = 'foo.js';
+var Foo = Object.freeze({
     __proto__: null,
-    a,
-    "default": a$1
+    foo
 });
 
-// b.js
-var b = Object.freeze({
-    __proto__: null,
-    a: a$2,
-    aInB: a,
-    "default": a$1
-});
+// a.js
 
 // index.js
-export { a$2 as a, a as aInB, b };
+export { Foo, Foo as RenamedFoo };
