@@ -196,7 +196,6 @@ impl Module {
 
                 let id = uf.lock().unwrap().new_id(final_name.into());
                 uf.lock().unwrap().union(&id, &default_exported_id);
-                // TODO: check if the name is used in the module
                 self.local_binded_ids.insert(id.0.clone(), id.clone());
                 self.ast
                     .as_mut_module()
@@ -303,7 +302,6 @@ impl Debug for Module {
             .field("id", &self.id)
             .field("dependencies", &self.dependencies)
             .field("dyn_dependencies", &self.dyn_dependencies)
-            .field("ast", &"...")
             // .field("ast", &self.ast)
             .field("top_level_mark", &self.top_level_mark)
             .field("imports", &self.imports)
@@ -312,11 +310,17 @@ impl Debug for Module {
             .field("merged_exports", &self.merged_exports)
             .field("side_effect", &self.side_effect)
             .field("resolved_module_ids", &self.resolved_module_ids)
-            .field("declared_ids", &self.local_binded_ids)
+            .field("local_binded_ids", &self.local_binded_ids)
             .field("included", &self.included)
             .field("used_exported_id", &self.used_exported_id)
             .field("suggested_names", &self.suggested_names)
             .field("is_user_defined_entry", &self.is_user_defined_entry)
+            .field("has_generated_exports", &self.has_generated_exports)
+            .field(
+                "has_generated_namespace_exports",
+                &self.has_generated_namespace_exports,
+            )
+            .field("namespace_export_id", &self.namespace_export_id)
             .finish()
     }
 }

@@ -368,8 +368,9 @@ impl Graph {
                                     .map(|spec| &spec.alias)
                                     .cloned(),
                             )
+                            .chain(module.local_binded_ids.values().cloned())
                             .for_each(|id| {
-                                self.uf.add_key(id.clone());
+                                self.uf.add_key(id);
                             });
                         self.add_module(*module);
                     }

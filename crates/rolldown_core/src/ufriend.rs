@@ -43,15 +43,14 @@ impl<Key: Eq + Hash + Clone + Debug> UFriend<Key> {
         }
     }
 
-    pub fn add_key(&mut self, key: Key) {
-        if !self.real_key_to_ena_key.contains_key(&key) {
-            // self.stored.push(key);
-            // let index = self.stored.len() - 1;
-            let ena_key = self.ena.get_mut().unwrap().new_key(());
-            // self.ena_key_to_key_map.insert(ena_key, key);
-            self.real_key_to_ena_key.insert(key.clone(), ena_key);
-            self.ena_key_to_real_key.insert(ena_key, key);
-        }
+    pub fn add_key(&mut self, real_key: Key) {
+        self.real_key_to_ena_key
+            .entry(real_key)
+            .or_insert_with_key(|key| {
+                let ena_key = self.ena.get_mut().unwrap().new_key(());
+                self.ena_key_to_real_key.insert(ena_key, key.clone());
+                ena_key
+            });
     }
 
     pub fn union(&self, key1: &Key, key2: &Key) {

@@ -59,7 +59,7 @@ impl Chunk {
             .rev()
             .for_each(|module| {
                 module.local_binded_ids.values().for_each(|id| {
-                    let root_id = uf.find_root(id).unwrap();
+                    let root_id = uf.find_root(id).unwrap_or_else(|| panic!("id: {:?} for module: {:?}", id, module.id));
                     if let hashbrown::hash_map::Entry::Vacant(e) = id_to_name.entry(root_id.clone())
                     {
                         let original_name = id.0.clone();
