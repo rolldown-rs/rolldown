@@ -5,9 +5,10 @@ use std::sync::{
 
 use dashmap::DashSet;
 use swc_atoms::JsWord;
-use swc_common::{Mark};
+use swc_common::{Mark, DUMMY_SP};
 use swc_ecma_transforms::resolver;
 
+use swc_ecma_utils::quote_ident;
 use swc_ecma_visit::VisitMutWith;
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 
@@ -116,7 +117,7 @@ impl ResolvingModuleJob {
 
         self.pre_scan_dependencies(&ast, id.id.clone().into());
 
-        let top_level_mark = get_swc_compiler().run(|| Mark::new());
+        let (top_level_mark, namespace_export_mark) = get_swc_compiler().run(|| (Mark::new(), Mark::new()));
 
         get_swc_compiler().run(|| {
             ast.visit_mut_with(&mut resolver(
@@ -163,6 +164,7 @@ impl ResolvingModuleJob {
             is_user_defined_entry: self.is_entry,
             has_generated_exports: false,
             has_generated_namespace_exports: false,
+            namespace_export_id: None,
             // used_exports: Default::default(),
         };
 

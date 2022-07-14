@@ -9,6 +9,9 @@ edition = "2021"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 glob = "0.3.0"
+testing_macros = "0.2.5"
+similar-asserts = "1.2.0"
+
 
 [dependencies]
 rolldown_core = { path = "../rolldown_core" }

@@ -158,7 +158,8 @@ impl Graph {
                             if &spec.original == "default" || &spec.original == "*" {
                                 // There is only one case where `specifier.used` is not a valid varible name.
                                 // Special case ` export { default } from ...`
-                                if &spec.alias.0 != "default" {
+                                // Special case ` export * from ...`
+                                if &spec.alias.0 != "default" && &spec.alias.0 != "*" {
                                     re_exported_module
                                         .suggest_name(spec.original.clone(), spec.alias.0.clone());
                                 }
@@ -168,7 +169,7 @@ impl Graph {
                                     .merged_exports
                                     .clone()
                                     .into_iter()
-                                    .filter(|(name, _)| name != "default")
+                                    .filter(|(name, _)| name != "default" && name != "*")
                                     .collect()
                             } else {
                                 let original_id = re_exported_module

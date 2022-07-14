@@ -14,8 +14,9 @@ use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_utils::quote_ident;
 
 use crate::{
-    get_swc_compiler, make_legal, ufriend::UFriend, LocalExports, MergedExports, ModuleById,
-    NormalizedInputOptions, ResolvedId, SideEffect, SpecifierId,
+    gen_exports_stmt, gen_namespace_export_stmt, get_swc_compiler, make_legal, ufriend::UFriend,
+    LocalExports, MergedExports, ModuleById, NormalizedInputOptions, ResolvedId, SideEffect,
+    SpecifierId,
 };
 
 pub struct Module {
@@ -41,6 +42,8 @@ pub struct Module {
 
     pub has_generated_exports: bool,
     pub has_generated_namespace_exports: bool,
+
+    pub namespace_export_id: Option<Id>,
 }
 
 impl Module {
@@ -65,107 +68,41 @@ impl Module {
     }
 
     pub fn get_exported(&mut self, name: &JsWord, uf: &mut UFriend<Id>) -> Option<&Id> {
-        if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
-            get_swc_compiler().run(|| {
-                self.merged_exports
-                    .insert("*".into(), uf.new_id("*".into()));
-            });
-        };
-        self.merged_exports.get(name)
-    }
-
-    fn gen_namespace_export(&self, name_id: Id) -> ast::ModuleItem {
-        // use ast::{PropOrSpread, PropName, Prop, Expr, Lit, Null, Stmt, KeyValueProp, Decl};
-        use ast::*;
-        let mut key_values = self
-            .merged_exports
-            .iter()
-            .filter(|(name, _)| *name != "*")
-            .collect::<Vec<_>>();
-        key_values.sort_by(|a, b| a.0.cmp(b.0));
-        let mut props = vec![PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
-            key: PropName::Ident(quote_ident!("__proto__")),
-            value: Box::new(Expr::Lit(Lit::Null(Null::dummy()))),
-        })))];
-        props.append(
-            &mut key_values
-                .into_iter()
-                .map(|(name, id)| {
-                    PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
-                        key: {
-                            if Ident::verify_symbol(name).is_ok() {
-                                PropName::Ident(quote_ident!(
-                                    DUMMY_SP.apply_mark(Mark::new()),
-                                    name
-                                ))
-                            } else {
-                                PropName::Str(name.clone().into())
-                            }
-                        },
-                        value: Box::new(Expr::Ident(id.clone().into())),
-                    })))
-                })
-                .collect(),
-        );
-        ModuleItem::Stmt(Stmt::Decl(Decl::Var(VarDecl {
-            span: DUMMY_SP,
-            kind: VarDeclKind::Var,
-            declare: false,
-            decls: vec![VarDeclarator {
-                span: DUMMY_SP,
-                definite: false,
-                name: Pat::Ident(BindingIdent {
-                    type_ann: None,
-                    id: name_id.into(),
-                }),
-                init: Some(Box::new(Expr::Call(CallExpr {
-                    callee: Callee::Expr(Box::new(Expr::Member(MemberExpr {
-                        obj: Box::new(Expr::Ident(Ident {
-                            sym: "Object".into(),
-                            ..Ident::dummy()
-                        })),
-                        prop: MemberProp::Ident(Ident {
-                            sym: "freeze".into(),
-                            ..Ident::dummy()
-                        }),
-                        ..MemberExpr::dummy()
-                    }))),
-                    args: vec![ExprOrSpread {
-                        expr: Box::new(Expr::Object(ObjectLit {
-                            span: DUMMY_SP,
-                            props,
-                        })),
-                        spread: None,
-                    }],
-                    ..CallExpr::dummy()
-                }))),
-            }],
-        })))
+        if name == "*" {
+            if self.namespace_export_id.is_none() {
+                get_swc_compiler().run(|| {
+                    self.namespace_export_id = Some(uf.new_id("*".into()));
+                });
+            }
+            self.namespace_export_id.as_ref()
+        } else {
+            self.merged_exports.get(name)
+        }
     }
 
     pub fn mark_used_id(&mut self, name: &JsWord, _id: &Id) {
-        if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
-            let namespace_export = get_swc_compiler().run(|| {
-                self.merged_exports.insert(
-                    "*".into(),
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
-                );
-                self.gen_namespace_export(
-                    quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
-                )
-            });
-            self.ast
-                .as_mut_module()
-                .unwrap()
-                .body
-                .push(namespace_export)
-        };
-        let local_id = self
-            .merged_exports
-            .get(name)
-            .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", name, self.id))
-            .clone();
-        self.used_exported_id.insert(local_id.clone());
+        // if name == "*" && !self.merged_exports.contains_key(&"*".into()) {
+        //     let namespace_export = get_swc_compiler().run(|| {
+        //         self.merged_exports.insert(
+        //             "*".into(),
+        //             quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+        //         );
+        //         self.gen_namespace_export(
+        //             quote_ident!(DUMMY_SP.apply_mark(Mark::new()), "*").to_id(),
+        //         )
+        //     });
+        //     self.ast
+        //         .as_mut_module()
+        //         .unwrap()
+        //         .body
+        //         .push(namespace_export)
+        // };
+        // let local_id = self
+        //     .merged_exports
+        //     .get(name)
+        //     .unwrap_or_else(|| panic!("fail to get id {:?} in {:?}", name, self.id))
+        //     .clone();
+        // self.used_exported_id.insert(local_id.clone());
     }
 
     pub fn unused_ids(&self) -> HashSet<Id> {
@@ -184,12 +121,12 @@ impl Module {
     pub fn generate_exports(&mut self) {
         if !self.merged_exports.is_empty() && !self.has_generated_exports {
             self.has_generated_exports = true;
-            let exports = self.gen_export();
+            let exports = gen_exports_stmt(&self.merged_exports);
             self.ast.as_mut_module().map(|ast| ast.body.push(exports));
         }
     }
 
-    pub fn declared_a_new_name(&mut self, name_hint: &JsWord) -> JsWord {
+    pub fn generate_valid_name_in_current_scope(&mut self, name_hint: &JsWord) -> JsWord {
         let mut name = name_hint.clone();
         let mut i = 0;
         while self.local_binded_ids.contains_key(&name) {
@@ -200,38 +137,38 @@ impl Module {
     }
 
     pub fn generate_namespace_export(&mut self, uf: &Mutex<&mut UFriend<Id>>) {
-        if self.merged_exports.contains_key(&"*".into()) && !self.has_generated_namespace_exports {
-            self.has_generated_namespace_exports = true;
-            let namespace_export = get_swc_compiler().run(|| {
-                let final_name = {
-                    let suggest_name = self
-                        .suggested_names
-                        .get(&"*".into())
-                        .map(|s| s.clone())
-                        .unwrap_or_else(|| {
-                            (Path::new(&self.id.to_string())
-                                .file_stem()
-                                .map(|s| s.to_string_lossy().to_string())
-                                .unwrap())
-                            .into()
-                        });
-                    let suggest_name = make_legal(&suggest_name);
-                    self.declared_a_new_name(&suggest_name.into())
-                };
+        if let Some(namespace_export_id) = self.namespace_export_id.clone() {
+            if !self.has_generated_namespace_exports {
+                tracing::trace!("generate_namespace_export for {:?}", self.id);
+                self.has_generated_namespace_exports = true;
+                let namespace_export = get_swc_compiler().run(|| {
+                    let final_name = {
+                        let suggest_name = self
+                            .suggested_names
+                            .get(&"*".into())
+                            .map(|s| s.clone())
+                            .unwrap_or_else(|| {
+                                (Path::new(&self.id.to_string())
+                                    .file_stem()
+                                    .map(|s| s.to_string_lossy().to_string())
+                                    .unwrap())
+                                .into()
+                            });
+                        let suggest_name = make_legal(&suggest_name);
+                        self.generate_valid_name_in_current_scope(&suggest_name.into())
+                    };
 
-                let id = uf.lock().unwrap().new_id(final_name);
-                uf.lock()
+                    let id = uf.lock().unwrap().new_id(final_name);
+                    uf.lock().unwrap().union(&id, &namespace_export_id);
+                    self.local_binded_ids.insert(id.0.clone(), id.clone());
+                    gen_namespace_export_stmt(id, &self.merged_exports)
+                });
+                self.ast
+                    .as_mut_module()
                     .unwrap()
-                    .union(&id, self.merged_exports.get(&"*".into()).unwrap());
-                // TODO: check if the name is used in the module
-                self.local_binded_ids.insert(id.0.clone(), id.clone());
-                self.gen_namespace_export(id)
-            });
-            self.ast
-                .as_mut_module()
-                .unwrap()
-                .body
-                .push(namespace_export);
+                    .body
+                    .push(namespace_export);
+            }
         }
     }
 
@@ -254,7 +191,7 @@ impl Module {
                                 .into()
                         });
                     let suggest_name = make_legal(&suggest_name);
-                    self.declared_a_new_name(&suggest_name.into())
+                    self.generate_valid_name_in_current_scope(&suggest_name.into())
                 };
 
                 let id = uf.lock().unwrap().new_id(final_name.into());
@@ -317,10 +254,7 @@ impl Module {
         );
         comments.add_leading(
             match &self.ast {
-                ast::Program::Module(node) => match &node.body[0] {
-                    ModuleItem::ModuleDecl(node) => node.span().lo,
-                    ModuleItem::Stmt(node) => node.span().lo,
-                },
+                ast::Program::Module(node) => node.span.lo(),
                 ast::Program::Script(node) => node.span.lo(),
             },
             Comment {
@@ -351,53 +285,15 @@ impl Module {
         String::from_utf8(output).unwrap()
     }
 
-    fn get_valid_name_in_current_scope(&mut self, name: &str) -> String {
-        let mut name = name.to_string();
-        let mut i = 0;
-        while self.local_binded_ids.contains_key(&name.as_str().into()) {
-            i += 1;
-            name = format!("{}${}", name, i);
-        }
-        name
-    }
-
-    pub fn gen_export(&self) -> ast::ModuleItem {
-        use ast::{
-            ExportNamedSpecifier, ExportSpecifier, Ident, ModuleDecl, ModuleExportName, NamedExport,
-        };
-        use swc_common::{Span, DUMMY_SP};
-        let mut exports = self.merged_exports.iter().collect::<Vec<_>>();
-        exports.sort_by(|a, b| a.0.cmp(b.0));
-
-        ModuleItem::ModuleDecl(ModuleDecl::ExportNamed(NamedExport {
-            span: Default::default(),
-            specifiers: exports
-                .into_iter()
-                .filter(|(name, _)| name != &"*")
-                .map(|(name, id)| {
-                    ExportSpecifier::Named(ExportNamedSpecifier {
-                        span: Default::default(),
-                        orig: ModuleExportName::Ident(ast::Ident {
-                            sym: id.0.clone(),
-                            span: Span {
-                                ctxt: id.1,
-                                ..DUMMY_SP
-                            },
-                            optional: false,
-                        }),
-                        exported: Some(ModuleExportName::Ident(Ident {
-                            sym: name.clone(),
-                            ..Ident::dummy()
-                        })),
-                        is_type_only: false,
-                    })
-                })
-                .collect::<Vec<_>>(),
-            src: None,
-            type_only: false,
-            asserts: None,
-        }))
-    }
+    // fn get_valid_name_in_current_scope(&mut self, name: &str) -> String {
+    //     let mut name = name.to_string();
+    //     let mut i = 0;
+    //     while self.local_binded_ids.contains_key(&name.as_str().into()) {
+    //         i += 1;
+    //         name = format!("{}${}", name, i);
+    //     }
+    //     name
+    // }
 }
 
 impl Debug for Module {

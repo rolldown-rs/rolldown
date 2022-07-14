@@ -1,3 +1,4 @@
+// foo.js
 var defaultFoo = 'foo.js';
 
 // index.js

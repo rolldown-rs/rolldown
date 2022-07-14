@@ -12,6 +12,8 @@ mod shake;
 pub use shake::*;
 mod name_helpers;
 pub use name_helpers::*;
+mod ast_builder;
+pub use ast_builder::*;
 
 pub fn uri_to_chunk_name(root: &str, uri: &str) -> String {
   let path = Path::new(uri);
